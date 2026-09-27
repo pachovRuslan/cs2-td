@@ -1,25 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import Phaser from "phaser";
-import { phaserConfig } from "@/lib/game/config";
+import dynamic from "next/dynamic";
+
+/**
+ * Phaser загружается ТОЛЬКО на клиенте.
+ * ssr: false говорит Next.js не пытаться бандлить GameCanvas на сервере.
+ * Это критично, потому что Phaser обращается к window при импорте.
+ */
+const GameCanvas = dynamic(() => import("@/components/game/GameCanvas"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">
+      Загрузка игры...
+    </div>
+  ),
+});
 
 export default function Home() {
-  const gameRef = useRef<Phaser.Game | null>(null);
-
-  useEffect(() => {
-    if (gameRef.current) return;
-
-    console.log("[Home] Создаём Phaser.Game...");
-    gameRef.current = new Phaser.Game(phaserConfig);
-
-    return () => {
-      console.log("[Home] Уничтожаем Phaser.Game...");
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-    };
-  }, []);
-
   return (
     <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
       <header className="mb-4 text-center">
@@ -31,10 +28,10 @@ export default function Home() {
         </p>
       </header>
 
-      <div
-        id="game-container"
-        className="w-full max-w-[1024px] aspect-[1024/640] bg-black border-2 border-zinc-800 rounded-lg overflow-hidden"
-      />
+      {/* Canvas-контейнер — Phaser вставит сюда canvas */}
+      <div className="w-full max-w-[1024px] aspect-[1024/640] bg-black border-2 border-zinc-800 rounded-lg overflow-hidden">
+        <GameCanvas />
+      </div>
 
       <footer className="mt-4 text-xs text-zinc-600 font-mono">
         1024×640 · Phaser 4 · Next.js 16
