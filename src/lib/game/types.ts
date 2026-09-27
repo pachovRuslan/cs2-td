@@ -69,7 +69,8 @@ export interface EnemyConfig {
   name: string;
   baseHp: number;
   baseSpeed: number;   // px/sec
-  baseReward: number;  // $   baseDamage: number;  // урон по базе при достижении CT-spawn
+  baseReward: number;
+  baseDamage: number;  // урон по базе при достижении CT-spawn
   sprite: string;
   color: number;
   isBoss: boolean;

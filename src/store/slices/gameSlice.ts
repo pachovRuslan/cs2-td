@@ -1,4 +1,4 @@
-import { GameStats, TowerKind } from "@/src/lib/game/types";
+import { GameStats, TowerKind } from "@/lib/game/types";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
  
 

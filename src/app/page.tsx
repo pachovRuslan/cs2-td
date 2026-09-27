@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Phaser from "phaser"; 
-import { phaserConfig } from "../lib/game/config";
-
-
+import Phaser from "phaser";
+import { phaserConfig } from "@/lib/game/config";
 
 export default function Home() {
   const gameRef = useRef<Phaser.Game | null>(null);
 
   useEffect(() => {
-    if (gameRef.current) return;   
+    if (gameRef.current) return;
 
     console.log("[Home] Создаём Phaser.Game...");
     gameRef.current = new Phaser.Game(phaserConfig);
@@ -32,7 +30,7 @@ export default function Home() {
           Блок 2 готов: Redux + Phaser config + структуры. Сцены — заглушки.
         </p>
       </header>
- 
+
       <div
         id="game-container"
         className="w-full max-w-[1024px] aspect-[1024/640] bg-black border-2 border-zinc-800 rounded-lg overflow-hidden"
