@@ -1,0 +1,862 @@
+diff --git a/src/lib/game/scenes/GameScene.ts b/src/lib/game/scenes/GameScene.ts
+index c2d6831..7993f56 100644
+--- a/src/lib/game/scenes/GameScene.ts
++++ b/src/lib/game/scenes/GameScene.ts
+@@ -14,19 +14,40 @@ import {
+ import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
+ import { SCORE_PER_REWARD } from "../data/enemies";
+ import { gameEvents, GameEvents } from "../events";
+-import type { GameSpeed } from "../types";
++import type { GameSpeed, TowerKind } from "../types";
++import { TOWERS, TOWER_ORDER, getTowerLevel, getTowerSellValue } from "../data/towers";
+ import { EconomySystem } from "../systems/EconomySystem";
+ import { EnemySystem } from "../systems/EnemySystem";
+ import { WaveSystem } from "../systems/WaveSystem";
++import { TowerSystem } from "../systems/TowerSystem";
++import { ProjectileSystem } from "../systems/ProjectileSystem";
++import { ParticleSystem } from "../systems/ParticleSystem";
++import {
++  PlacementSystem,
++  PLACEMENT_ERROR_TEXT,
++  TOWER_RADIUS,
++} from "../systems/PlacementSystem";
++
++const KEY_NAMES = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT"];
+ 
+ /**
+  * Game Scene - основная сцена геймплея.
+- * Рендер карты Dust2 + игровой цикл (экономика, волны, враги).
++ * Рендер карты Dust2 + игровой цикл (экономика, волны, враги, башни).
+  */
+ export class GameScene extends Phaser.Scene {
+   private economy!: EconomySystem;
+   private enemies!: EnemySystem;
+   private waves!: WaveSystem;
++  private towers!: TowerSystem;
++  private projectiles!: ProjectileSystem;
++  private particles!: ParticleSystem;
++  private placement = new PlacementSystem();
++
++  /** Какую башню ставим (выбрана в Buy Menu / клавишами 1–8). */
++  private buildType: TowerKind | null = null;
++  /** Какая построенная башня выбрана (для апгрейда/продажи). */
++  private selectedTowerId: string | null = null;
++  private overlay!: Phaser.GameObjects.Graphics;
+ 
+   private paused = false;
+   private speed: GameSpeed = 1;
+@@ -276,13 +297,24 @@ export class GameScene extends Phaser.Scene {
+     this.speed = 1;
+     this.gameTime = 0;
+     this.ended = false;
++    this.buildType = null;
++    this.selectedTowerId = null;
++    this.tweens.timeScale = 1;
+ 
+     this.economy = new EconomySystem();
+     this.enemies = new EnemySystem(this);
+     this.waves = new WaveSystem(this.enemies, this.economy);
+-
+-    this.enemies.onKilled = (e) =>
++    this.particles = new ParticleSystem(this);
++    this.projectiles = new ProjectileSystem(this, this.enemies, this.particles);
++    this.towers = new TowerSystem(this, this.enemies, this.projectiles, this.particles);
++    this.overlay = this.add.graphics().setDepth(50);
++
++    this.projectiles.onDamageDealt = (owner, dmg, kills) =>
++      this.towers.recordDamage(owner, dmg, kills);
++    this.enemies.onKilled = (e) => {
+       this.economy.registerKill(e.reward, e.reward * SCORE_PER_REWARD);
++      this.particles.floatingText(e.x, e.y - 10, `+$${e.reward}`);
++    };
+     this.enemies.onReachedBase = (e) => this.economy.damageBase(e.damage);
+     this.economy.onBaseDestroyed = () => this.endGame();
+ 
+@@ -290,29 +322,178 @@ export class GameScene extends Phaser.Scene {
+   }
+ 
+   private initControls(): void {
+-    const onPause = ({ paused }: { paused: boolean }) => (this.paused = paused);
+-    const onSpeed = ({ speed }: { speed: GameSpeed }) => (this.speed = speed);
++    // события от React (BuyMenu/Controls) — сцена на них подписывается
++    const onPause = ({ paused }: { paused: boolean }) => this.setPaused(paused);
++    const onSpeed = ({ speed }: { speed: GameSpeed }) => this.setSpeed(speed);
++    const onSelect = ({ towerType }: { towerType: string | null }) =>
++      this.setBuildType((towerType as TowerKind | null) ?? null);
+     gameEvents.on(GameEvents.PAUSE_TOGGLED, onPause);
+     gameEvents.on(GameEvents.SPEED_CHANGED, onSpeed);
++    gameEvents.on(GameEvents.TOWER_SELECTED, onSelect);
+ 
+     const kb = this.input.keyboard;
+-    kb?.on("keydown-P", () => {
+-      this.paused = !this.paused;
+-      gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: this.paused });
+-    });
+-    kb?.on("keydown-F", () => {
+-      this.speed = this.speed === 1 ? 2 : 1;
+-      gameEvents.emit(GameEvents.SPEED_CHANGED, { speed: this.speed });
+-    });
++    kb?.on("keydown-P", () =>
++      gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: !this.paused })
++    );
++    kb?.on("keydown-F", () =>
++      gameEvents.emit(GameEvents.SPEED_CHANGED, { speed: this.speed === 1 ? 2 : 1 })
++    );
+     kb?.on("keydown-SPACE", () => this.waves.callEarly());
++    kb?.on("keydown-ESC", () => this.cancelAll());
++    kb?.on("keydown-U", () => this.upgradeSelected());
++    kb?.on("keydown-S", () => this.sellSelected());
++    KEY_NAMES.forEach((key, i) =>
++      kb?.on(`keydown-${key}`, () => {
++        const type = TOWER_ORDER[i];
++        gameEvents.emit(GameEvents.TOWER_SELECTED, {
++          towerType: this.buildType === type ? null : type,
++        });
++      })
++    );
++
++    this.input.mouse?.disableContextMenu();
++    this.input.on("pointermove", () => this.drawOverlay());
++    this.input.on("pointerdown", (ptr: Phaser.Input.Pointer) => this.onPointerDown(ptr));
+ 
+     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+       gameEvents.off(GameEvents.PAUSE_TOGGLED, onPause);
+       gameEvents.off(GameEvents.SPEED_CHANGED, onSpeed);
++      gameEvents.off(GameEvents.TOWER_SELECTED, onSelect);
++      this.input.off("pointermove");
++      this.input.off("pointerdown");
++      this.towers.clear();
++      this.projectiles.destroy();
+       this.enemies.destroy();
+     });
+   }
+ 
++  private setPaused(paused: boolean): void {
++    this.paused = paused;
++    if (paused) this.tweens.pauseAll();
++    else this.tweens.resumeAll();
++  }
++
++  private setSpeed(speed: GameSpeed): void {
++    this.speed = speed;
++    this.tweens.timeScale = speed;
++  }
++
++  private setBuildType(type: TowerKind | null): void {
++    this.buildType = type;
++    if (type) this.selectedTowerId = null;
++    this.drawOverlay();
++  }
++
++  private cancelAll(): void {
++    if (this.buildType) {
++      gameEvents.emit(GameEvents.TOWER_SELECTED, { towerType: null });
++    }
++    this.selectTower(null);
++  }
++
++  private selectTower(id: string | null): void {
++    this.selectedTowerId = id;
++    if (id) gameEvents.emit(GameEvents.TOWER_SELECTED, { towerType: null });
++    this.drawOverlay();
++  }
++
++  private onPointerDown(ptr: Phaser.Input.Pointer): void {
++    if (this.ended) return;
++    if (ptr.rightButtonDown()) {
++      this.cancelAll();
++      return;
++    }
++
++    const { worldX: x, worldY: y } = ptr;
++
++    if (this.buildType) {
++      this.tryBuild(this.buildType, x, y);
++      return;
++    }
++
++    const tower = this.towers.getAt(x, y);
++    this.selectTower(tower ? tower.id : null);
++  }
++
++  private tryBuild(type: TowerKind, x: number, y: number): void {
++    const cost = TOWERS[type].baseCost;
++    const err = this.placement.check(
++      x,
++      y,
++      this.towers.getAll(),
++      this.economy.canAfford(cost)
++    );
++    if (err) {
++      this.particles.floatingText(x, y - 16, PLACEMENT_ERROR_TEXT[err], "#ff6a5a");
++      return;
++    }
++    this.economy.spend(cost);
++    this.towers.build(type, x, y);
++    this.drawOverlay();
++  }
++
++  private upgradeSelected(): void {
++    const t = this.selectedTowerId && this.towers.getById(this.selectedTowerId);
++    if (!t) return;
++    const cost = this.towers.getUpgradeCost(t);
++    if (cost === null) return;
++    if (!this.economy.spend(cost)) {
++      this.particles.floatingText(t.x, t.y - 18, "Недостаточно денег", "#ff6a5a");
++      return;
++    }
++    this.towers.upgrade(t.id);
++    this.drawOverlay();
++  }
++
++  private sellSelected(): void {
++    const id = this.selectedTowerId;
++    if (!id) return;
++    const t = this.towers.getById(id);
++    const refund = this.towers.sell(id);
++    this.economy.earn(refund);
++    if (t) this.particles.floatingText(t.x, t.y - 10, `+$${refund}`);
++    this.selectTower(null);
++  }
++
++  /** Призрак башни под курсором и радиус выбранной башни. */
++  private drawOverlay(): void {
++    const g = this.overlay;
++    g.clear();
++
++    const selected = this.selectedTowerId && this.towers.getById(this.selectedTowerId);
++    if (selected) {
++      const range = getTowerLevel(selected.type, selected.level).range;
++      g.fillStyle(0xffffff, 0.08);
++      g.fillCircle(selected.x, selected.y, range);
++      g.lineStyle(1.5, 0xffffff, 0.6);
++      g.strokeCircle(selected.x, selected.y, range);
++      g.lineStyle(2, 0xffd34a, 1);
++      g.strokeCircle(selected.x, selected.y, TOWER_RADIUS + 3);
++    }
++
++    if (!this.buildType) return;
++    const ptr = this.input.activePointer;
++    const { worldX: x, worldY: y } = ptr;
++    const cfg = TOWERS[this.buildType];
++    const ok =
++      this.placement.check(
++        x,
++        y,
++        this.towers.getAll(),
++        this.economy.canAfford(cfg.baseCost)
++      ) === null;
++    const color = ok ? 0x4ad45a : 0xd44a4a;
++
++    g.fillStyle(color, 0.1);
++    g.fillCircle(x, y, cfg.levels[0].range);
++    g.lineStyle(1.5, color, 0.7);
++    g.strokeCircle(x, y, cfg.levels[0].range);
++    g.fillStyle(cfg.color, 0.6);
++    g.fillCircle(x, y, TOWER_RADIUS);
++    g.lineStyle(2, color, 1);
++    g.strokeCircle(x, y, TOWER_RADIUS);
++  }
++
+   update(_time: number, delta: number): void {
+     if (this.ended) return;
+     this.updateDebugHud();
+@@ -325,6 +506,8 @@ export class GameScene extends Phaser.Scene {
+ 
+     this.waves.update(dt);
+     this.enemies.update(dt, this.gameTime);
++    this.towers.update(this.gameTime);
++    this.projectiles.update(dt, this.gameTime);
+   }
+ 
+   private endGame(): void {
+@@ -366,10 +549,28 @@ export class GameScene extends Phaser.Scene {
+           }`;
+     const state = this.paused ? " · ПАУЗА" : this.speed === 2 ? " · 2x" : "";
+ 
++    let action = TOWER_ORDER.map(
++      (k, i) => `${i + 1}:${TOWERS[k].icon}$${TOWERS[k].baseCost}`
++    ).join(" ");
++    if (this.buildType) {
++      const c = TOWERS[this.buildType];
++      action = `Ставим ${c.name} ($${c.baseCost}) — ЛКМ поставить, ПКМ/ESC отмена`;
++    } else if (this.selectedTowerId) {
++      const t = this.towers.getById(this.selectedTowerId);
++      if (t) {
++        const up = this.towers.getUpgradeCost(t);
++        action =
++          `${TOWERS[t.type].name} lvl ${t.level} · киллы ${t.totalKills} · ` +
++          `[U] ${up === null ? "MAX" : `апгрейд $${up}`}  ` +
++          `[S] продать $${getTowerSellValue(t.type, t.level)}`;
++      }
++    }
++
+     this.debugText.setText(
+       `$${this.economy.money}  HP ${this.economy.baseHp}/${this.economy.baseHpMax}  ` +
+         `Счёт ${this.economy.score}  Киллы ${this.economy.kills}\n` +
+-        `${waveInfo}${state}   [P] пауза  [F] скорость`
++        `${waveInfo}${state}   [P] пауза  [F] скорость\n` +
++        action
+     );
+   }
+ }
+diff --git a/src/lib/game/systems/ParticleSystem.ts b/src/lib/game/systems/ParticleSystem.ts
+index e69de29..60c8bcb 100644
+--- a/src/lib/game/systems/ParticleSystem.ts
++++ b/src/lib/game/systems/ParticleSystem.ts
+@@ -0,0 +1,95 @@
++import Phaser from "phaser";
++
++/**
++ * Простые визуальные эффекты на примитивах (без текстур).
++ * Твины идут через scene.tweens, поэтому подчиняются паузе и скорости сцены.
++ */
++export class ParticleSystem {
++  constructor(private scene: Phaser.Scene) {}
++
++  /** Взрыв HE/C4: расширяющееся кольцо + вспышка. */
++  explosion(x: number, y: number, radius: number, color = 0xffa040): void {
++    const flash = this.scene.add.circle(x, y, radius * 0.4, 0xffffff, 0.9).setDepth(30);
++    const ring = this.scene.add
++      .circle(x, y, radius * 0.3, color, 0.45)
++      .setStrokeStyle(3, color, 0.9)
++      .setDepth(29);
++
++    this.scene.tweens.add({
++      targets: flash,
++      alpha: 0,
++      scale: 1.6,
++      duration: 160,
++      onComplete: () => flash.destroy(),
++    });
++    this.scene.tweens.add({
++      targets: ring,
++      scale: radius / (radius * 0.3),
++      alpha: 0,
++      duration: 380,
++      ease: "Cubic.easeOut",
++      onComplete: () => ring.destroy(),
++    });
++  }
++
++  /** Облако смока на время действия замедления. */
++  smokeCloud(x: number, y: number, radius: number, durationMs: number): void {
++    const cloud = this.scene.add.circle(x, y, radius * 0.5, 0xbfbfbf, 0).setDepth(25);
++    this.scene.tweens.chain({
++      targets: cloud,
++      tweens: [
++        { scale: 2, alpha: 0.45, duration: 250, ease: "Quad.easeOut" },
++        { alpha: 0.35, duration: Math.max(0, durationMs - 650) },
++        { alpha: 0, duration: 400 },
++      ],
++      onComplete: () => cloud.destroy(),
++    });
++  }
++
++  /** Попадание пули: маленькая искра. */
++  hit(x: number, y: number, color = 0xffe08a): void {
++    const spark = this.scene.add.circle(x, y, 3, color, 1).setDepth(28);
++    this.scene.tweens.add({
++      targets: spark,
++      scale: 2.2,
++      alpha: 0,
++      duration: 140,
++      onComplete: () => spark.destroy(),
++    });
++  }
++
++  /** Вспышка выстрела у ствола. */
++  muzzle(x: number, y: number): void {
++    const f = this.scene.add.circle(x, y, 4, 0xfff2a0, 0.95).setDepth(21);
++    this.scene.tweens.add({
++      targets: f,
++      alpha: 0,
++      scale: 0.4,
++      duration: 70,
++      onComplete: () => f.destroy(),
++    });
++  }
++
++  /** Всплывающий текст (+$, урон и т.п.). */
++  floatingText(x: number, y: number, text: string, color = "#ffd34a"): void {
++    const t = this.scene.add
++      .text(x, y, text, {
++        fontFamily: "monospace",
++        fontSize: "11px",
++        color,
++        fontStyle: "bold",
++        stroke: "#000000",
++        strokeThickness: 3,
++      })
++      .setOrigin(0.5)
++      .setDepth(40);
++    this.scene.tweens.add({
++      targets: t,
++      y: y - 22,
++      alpha: 0,
++      duration: 700,
++      ease: "Quad.easeOut",
++      onComplete: () => t.destroy(),
++    });
++  }
++}
+diff --git a/src/lib/game/systems/PlacementSystem.ts b/src/lib/game/systems/PlacementSystem.ts
+index e69de29..a24fd5a 100644
+--- a/src/lib/game/systems/PlacementSystem.ts
++++ b/src/lib/game/systems/PlacementSystem.ts
+@@ -0,0 +1,84 @@
++import { NO_BUILD_ZONES } from "../data/map";
++import { ALL_PATHS, PATHS } from "../data/paths";
++import { GAME_WIDTH, GAME_HEIGHT } from "../config";
++import { closestPointOnSegment, distanceSquared } from "../utils/math";
++import type { TowerRuntime } from "../types";
++
++export const TOWER_RADIUS = 13;
++/** Минимальная дистанция от центра башни до оси пути. */
++const PATH_CLEARANCE = 24;
++/** Минимальная дистанция между центрами башен. */
++const TOWER_SPACING = TOWER_RADIUS * 2 + 2;
++const EDGE_MARGIN = 30;
++
++export type PlacementError =
++  | "out_of_bounds"
++  | "blocked"
++  | "on_path"
++  | "occupied"
++  | "no_money";
++
++export const PLACEMENT_ERROR_TEXT: Record<PlacementError, string> = {
++  out_of_bounds: "За пределами карты",
++  blocked: "Здесь нельзя строить",
++  on_path: "Нельзя строить на пути",
++  occupied: "Слишком близко к другой башне",
++  no_money: "Недостаточно денег",
++};
++
++/**
++ * Проверка, можно ли поставить башню в точку.
++ * Чистая геометрия — без Phaser, легко тестировать.
++ */
++export class PlacementSystem {
++  check(
++    x: number,
++    y: number,
++    towers: readonly TowerRuntime[],
++    canAfford: boolean
++  ): PlacementError | null {
++    if (
++      x < EDGE_MARGIN ||
++      y < EDGE_MARGIN ||
++      x > GAME_WIDTH - EDGE_MARGIN ||
++      y > GAME_HEIGHT - EDGE_MARGIN
++    ) {
++      return "out_of_bounds";
++    }
++
++    for (const z of NO_BUILD_ZONES) {
++      if (
++        x + TOWER_RADIUS > z.x &&
++        x - TOWER_RADIUS < z.x + z.w &&
++        y + TOWER_RADIUS > z.y &&
++        y - TOWER_RADIUS < z.y + z.h
++      ) {
++        return "blocked";
++      }
++    }
++
++    if (this.isNearPath(x, y)) return "on_path";
++
++    const minSq = TOWER_SPACING * TOWER_SPACING;
++    for (const t of towers) {
++      if (distanceSquared(x, y, t.x, t.y) < minSq) return "occupied";
++    }
++
++    if (!canAfford) return "no_money";
++    return null;
++  }
++
++  private isNearPath(x: number, y: number): boolean {
++    const clearSq = PATH_CLEARANCE * PATH_CLEARANCE;
++    for (const id of ALL_PATHS) {
++      const path = PATHS[id];
++      for (let i = 1; i < path.length; i++) {
++        const a = path[i - 1];
++        const b = path[i];
++        const p = closestPointOnSegment(x, y, a.x, a.y, b.x, b.y);
++        if (distanceSquared(x, y, p.x, p.y) < clearSq) return true;
++      }
++    }
++    return false;
++  }
++}
+diff --git a/src/lib/game/systems/ProjectileSystem.ts b/src/lib/game/systems/ProjectileSystem.ts
+index e69de29..b54c219 100644
+--- a/src/lib/game/systems/ProjectileSystem.ts
++++ b/src/lib/game/systems/ProjectileSystem.ts
+@@ -0,0 +1,150 @@
++import Phaser from "phaser";
++import type { ProjectileRuntime, TowerConfig } from "../types";
++import { SPRITE_KEYS } from "../data/sprites";
++import type { EnemySystem } from "./EnemySystem";
++import type { ParticleSystem } from "./ParticleSystem";
++
++const HIT_DISTANCE = 6;
++
++export interface FireParams {
++  x: number;
++  y: number;
++  targetId: string;
++  targetX: number;
++  targetY: number;
++  speed: number;
++  damage: number;
++  sprite: string;
++  ownerId: string;
++  effect?: TowerConfig["effect"];
++}
++
++/**
++ * Снаряды: самонаведение на цель, попадание, AoE/slow/stun.
++ * Если цель умерла — снаряд долетает до её последней позиции
++ * (гранаты при этом всё равно взрываются, пули просто исчезают).
++ */
++export class ProjectileSystem {
++  private projectiles: ProjectileRuntime[] = [];
++  private graphics: Phaser.GameObjects.Graphics;
++  private nextId = 1;
++
++  /** Сообщает, сколько урона нанесла башня и убила ли она кого-то. */
++  onDamageDealt?: (ownerId: string, damage: number, kills: number) => void;
++
++  constructor(
++    scene: Phaser.Scene,
++    private enemies: EnemySystem,
++    private particles: ParticleSystem
++  ) {
++    this.graphics = scene.add.graphics().setDepth(20);
++  }
++
++  fire(p: FireParams): void {
++    this.projectiles.push({ id: `p${this.nextId++}`, ...p });
++  }
++
++  /** dt — секунды, now — мс игрового времени. */
++  update(dt: number, now: number): void {
++    const done = new Set<string>();
++
++    for (const p of this.projectiles) {
++      const target = this.enemies.getById(p.targetId);
++      if (target && !target.isDead) {
++        p.targetX = target.x;
++        p.targetY = target.y;
++      }
++
++      const dx = p.targetX - p.x;
++      const dy = p.targetY - p.y;
++      const dist = Math.sqrt(dx * dx + dy * dy);
++      const step = p.speed * dt;
++
++      if (dist <= Math.max(step, HIT_DISTANCE)) {
++        p.x = p.targetX;
++        p.y = p.targetY;
++        this.impact(p, target && !target.isDead ? target.id : null, now);
++        done.add(p.id);
++      } else {
++        p.x += (dx / dist) * step;
++        p.y += (dy / dist) * step;
++      }
++    }
++
++    if (done.size > 0) {
++      this.projectiles = this.projectiles.filter((p) => !done.has(p.id));
++    }
++    this.draw();
++  }
++
++  clear(): void {
++    this.projectiles = [];
++    this.graphics.clear();
++  }
++
++  destroy(): void {
++    this.clear();
++    this.graphics.destroy();
++  }
++
++  private impact(p: ProjectileRuntime, hitId: string | null, now: number): void {
++    const effect = p.effect;
++
++    if (effect?.type === "aoe") {
++      const radius = effect.radius ?? 50;
++      this.particles.explosion(p.x, p.y, radius);
++      let dealt = 0;
++      let kills = 0;
++      for (const e of this.enemies.grid.queryRadius(p.x, p.y, radius)) {
++        const before = e.hp;
++        if (this.enemies.damage(e.id, p.damage)) kills++;
++        dealt += before - e.hp;
++      }
++      this.onDamageDealt?.(p.ownerId, dealt, kills);
++      return;
++    }
++
++    if (effect?.type === "slow") {
++      const radius = effect.radius ?? 60;
++      const duration = effect.duration ?? 2000;
++      this.particles.smokeCloud(p.x, p.y, radius, duration);
++      for (const e of this.enemies.grid.queryRadius(p.x, p.y, radius)) {
++        this.enemies.applySlow(e.id, effect.factor ?? 0.5, now + duration);
++      }
++      return;
++    }
++
++    if (!hitId) return; // пуля, цель уже мертва
++
++    const target = this.enemies.getById(hitId)!;
++    const before = target.hp;
++    const killed = this.enemies.damage(hitId, p.damage);
++    if (effect?.type === "stun" && !killed) {
++      this.enemies.applySlow(hitId, 0, now + (effect.duration ?? 400));
++    }
++    this.particles.hit(p.x, p.y);
++    this.onDamageDealt?.(p.ownerId, before - target.hp, killed ? 1 : 0);
++  }
++
++  private draw(): void {
++    const g = this.graphics;
++    g.clear();
++    for (const p of this.projectiles) {
++      if (p.effect?.type === "aoe" || p.effect?.type === "slow") {
++        // граната / C4
++        g.fillStyle(p.effect.type === "slow" ? 0xcfcfcf : 0x3a4a2a, 1);
++        g.fillCircle(p.x, p.y, 4);
++        g.lineStyle(1, 0x000000, 0.8);
++        g.strokeCircle(p.x, p.y, 4);
++      } else {
++        // пуля — короткий трассер по направлению полёта
++        const dx = p.targetX - p.x;
++        const dy = p.targetY - p.y;
++        const len = Math.sqrt(dx * dx + dy * dy) || 1;
++        const tail = p.sprite === SPRITE_KEYS.PROJECTILE_AWP ? 18 : 7;
++        g.lineStyle(p.sprite === SPRITE_KEYS.PROJECTILE_AWP ? 2 : 1.5, 0xffe08a, 1);
++        g.lineBetween(p.x, p.y, p.x - (dx / len) * tail, p.y - (dy / len) * tail);
++      }
++    }
++  }
++}
+diff --git a/src/lib/game/systems/TowerSystem.ts b/src/lib/game/systems/TowerSystem.ts
+index e69de29..d9c45c2 100644
+--- a/src/lib/game/systems/TowerSystem.ts
++++ b/src/lib/game/systems/TowerSystem.ts
+@@ -0,0 +1,211 @@
++import Phaser from "phaser";
++import type { EnemyRuntime, TowerKind, TowerRuntime } from "../types";
++import { TOWERS, getTowerLevel, getTowerSellValue } from "../data/towers";
++import { gameEvents, GameEvents } from "../events";
++import { TOWER_RADIUS } from "./PlacementSystem";
++import type { EnemySystem } from "./EnemySystem";
++import type { ProjectileSystem } from "./ProjectileSystem";
++import type { ParticleSystem } from "./ParticleSystem";
++
++const BARREL_LEN = 16;
++
++interface TowerView {
++  container: Phaser.GameObjects.Container;
++  barrel: Phaser.GameObjects.Rectangle;
++  pips: Phaser.GameObjects.Graphics;
++}
++
++/**
++ * Башни: постройка, апгрейд, продажа, выбор цели и стрельба.
++ * Цель — враг, дальше всех продвинувшийся по пути («first»).
++ */
++export class TowerSystem {
++  private towers: TowerRuntime[] = [];
++  private views = new Map<string, TowerView>();
++  private nextId = 1;
++
++  constructor(
++    private scene: Phaser.Scene,
++    private enemies: EnemySystem,
++    private projectiles: ProjectileSystem,
++    private particles: ParticleSystem
++  ) {}
++
++  getAll(): readonly TowerRuntime[] {
++    return this.towers;
++  }
++
++  getById(id: string): TowerRuntime | undefined {
++    return this.towers.find((t) => t.id === id);
++  }
++
++  /** Башня под точкой (для клика). */
++  getAt(x: number, y: number): TowerRuntime | undefined {
++    const r = TOWER_RADIUS + 2;
++    return this.towers.find((t) => (t.x - x) ** 2 + (t.y - y) ** 2 <= r * r);
++  }
++
++  build(type: TowerKind, x: number, y: number): TowerRuntime {
++    const tower: TowerRuntime = {
++      id: `t${this.nextId++}`,
++      type,
++      x,
++      y,
++      level: 1,
++      lastFireTime: -Infinity,
++      totalKills: 0,
++      totalDamage: 0,
++    };
++    this.towers.push(tower);
++    this.views.set(tower.id, this.createView(tower));
++    gameEvents.emit(GameEvents.TOWER_PLACED, { id: tower.id, type, x, y });
++    return tower;
++  }
++
++  /** Цена апгрейда или null, если уровень максимальный. */
++  getUpgradeCost(tower: TowerRuntime): number | null {
++    const cost = getTowerLevel(tower.type, tower.level).upgradeCost;
++    return tower.level < 3 && cost > 0 ? cost : null;
++  }
++
++  upgrade(id: string): void {
++    const t = this.getById(id);
++    if (!t || t.level >= 3) return;
++    t.level = (t.level + 1) as 2 | 3;
++    this.drawPips(t);
++    this.particles.floatingText(t.x, t.y - 18, `LVL ${t.level}`, "#7fd4ff");
++    gameEvents.emit(GameEvents.TOWER_UPGRADED, { id, level: t.level });
++  }
++
++  /** Удаляет башню, возвращает сумму возврата. */
++  sell(id: string): number {
++    const t = this.getById(id);
++    if (!t) return 0;
++    const refund = getTowerSellValue(t.type, t.level);
++    this.towers = this.towers.filter((x) => x.id !== id);
++    this.views.get(id)?.container.destroy();
++    this.views.delete(id);
++    gameEvents.emit(GameEvents.TOWER_SOLD, { id, refund });
++    return refund;
++  }
++
++  recordDamage(ownerId: string, damage: number, kills: number): void {
++    const t = this.getById(ownerId);
++    if (!t) return;
++    t.totalDamage += damage;
++    t.totalKills += kills;
++  }
++
++  /** now — мс игрового времени. */
++  update(now: number): void {
++    for (const t of this.towers) {
++      const cfg = TOWERS[t.type];
++      const lvl = getTowerLevel(t.type, t.level);
++      const target = this.findTarget(t, lvl.range);
++      if (!target) continue;
++
++      const view = this.views.get(t.id)!;
++      const angle = Math.atan2(target.y - t.y, target.x - t.x);
++      view.barrel.setRotation(angle);
++
++      const cooldown = 1000 / lvl.fireRate;
++      if (now - t.lastFireTime < cooldown) continue;
++      t.lastFireTime = now;
++
++      const mx = t.x + Math.cos(angle) * BARREL_LEN;
++      const my = t.y + Math.sin(angle) * BARREL_LEN;
++      if (cfg.category === "gun" || cfg.category === "agent") {
++        this.particles.muzzle(mx, my);
++      }
++
++      this.projectiles.fire({
++        x: mx,
++        y: my,
++        targetId: target.id,
++        targetX: target.x,
++        targetY: target.y,
++        speed: cfg.projectileSpeed,
++        damage: lvl.damage,
++        sprite: cfg.projectileSprite,
++        ownerId: t.id,
++        effect: cfg.effect,
++      });
++    }
++  }
++
++  clear(): void {
++    for (const v of this.views.values()) v.container.destroy();
++    this.views.clear();
++    this.towers = [];
++  }
++
++  private findTarget(t: TowerRuntime, range: number): EnemyRuntime | null {
++    const inRange = this.enemies.grid.queryRadius(t.x, t.y, range);
++    let best: EnemyRuntime | null = null;
++    let bestScore = -Infinity;
++    for (const e of inRange) {
++      if (e.isDead || e.reachedBase) continue;
++      // smoke предпочитает ещё не замедленных врагов
++      const score =
++        e.pathProgress - (t.type === "smoke" && e.slowFactor < 1 ? 1 : 0);
++      if (score > bestScore) {
++        best = e;
++        bestScore = score;
++      }
++    }
++    return best;
++  }
++
++  private createView(t: TowerRuntime): TowerView {
++    const cfg = TOWERS[t.type];
++
++    const shadow = this.scene.add.circle(2, 3, TOWER_RADIUS, 0x000000, 0.35);
++    const base = this.scene.add
++      .circle(0, 0, TOWER_RADIUS, cfg.color, 1)
++      .setStrokeStyle(2, 0x111111, 1);
++    const barrel = this.scene.add
++      .rectangle(0, 0, BARREL_LEN, 4, 0x1a1a1a, 1)
++      .setOrigin(0, 0.5);
++    const label = this.scene.add
++      .text(0, 0, cfg.icon, {
++        fontFamily: "monospace",
++        fontSize: cfg.icon.length > 2 ? "8px" : "9px",
++        color: "#ffffff",
++        fontStyle: "bold",
++        stroke: "#000000",
++        strokeThickness: 2,
++      })
++      .setOrigin(0.5);
++    const pips = this.scene.add.graphics();
++
++    const container = this.scene.add
++      .container(t.x, t.y, [shadow, base, barrel, label, pips])
++      .setDepth(15);
++
++    const view = { container, barrel, pips };
++    this.views.set(t.id, view);
++    this.drawPips(t);
++
++    container.setScale(0.3);
++    this.scene.tweens.add({
++      targets: container,
++      scale: 1,
++      duration: 180,
++      ease: "Back.easeOut",
++    });
++    return view;
++  }
++
++  /** Точки уровня под башней. */
++  private drawPips(t: TowerRuntime): void {
++    const view = this.views.get(t.id);
++    if (!view) return;
++    const g = view.pips;
++    g.clear();
++    for (let i = 0; i < t.level; i++) {
++      const px = (i - (t.level - 1) / 2) * 6;
++      g.fillStyle(0xffd34a, 1);
++      g.fillCircle(px, TOWER_RADIUS + 4, 2);
++    }
++  }
++}
