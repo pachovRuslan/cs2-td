@@ -5,8 +5,8 @@ import { MAP_COLORS, ZONES } from "../data/map";
 import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
 
 /**
- * Menu Scene - РіР»Р°РІРЅРѕРµ РјРµРЅСЋ.
- * Р¤РѕРЅ-РїСЂРµРІСЊСЋ РєР°СЂС‚С‹ Dust2, Р·Р°РіРѕР»РѕРІРѕРє, РєРЅРѕРїРєРё РРіСЂР°С‚СЊ/РљР°Рє РёРіСЂР°С‚СЊ/Р РµРєРѕСЂРґС‹.
+ * Menu Scene - главное меню.
+ * Фон-превью карты Dust2, заголовок, кнопки Играть/Как играть/Рекорды.
  */
 export class MenuScene extends Phaser.Scene {
   private playBtn!: Phaser.GameObjects.Container;
@@ -40,25 +40,25 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: "bold",
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 200, "Р—Р°С‰РёС‚Рё CT-spawn РѕС‚ С‚РµСЂСЂРѕСЂРёСЃС‚РѕРІ", {
+    this.add.text(GAME_WIDTH / 2, 200, "Защити CT-spawn от террористов", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#888888",
     }).setOrigin(0.5);
 
-    this.playBtn = this.createButton(GAME_WIDTH / 2, 310, "РР“Р РђРўР¬", 0x4a8ad4, () => {
+    this.playBtn = this.createButton(GAME_WIDTH / 2, 310, "ИГРАТЬ", 0x4a8ad4, () => {
       this.unlockAudio();
       this.scene.start("GameScene");
       this.scene.launch("UIScene");
       gameEvents.emit(GameEvents.TOWER_SELECTED, { towerType: null });
     });
 
-    this.helpBtn = this.createButton(GAME_WIDTH / 2, 380, "РљРђРљ РР“Р РђРўР¬", 0x5a5a5a, () => {
+    this.helpBtn = this.createButton(GAME_WIDTH / 2, 380, "КАК ИГРАТЬ", 0x5a5a5a, () => {
       this.unlockAudio();
       this.showHelp();
     });
 
-    this.recordsBtn = this.createButton(GAME_WIDTH / 2, 450, "Р Р•РљРћР Р”Р«", 0x5a5a5a, () => {
+    this.recordsBtn = this.createButton(GAME_WIDTH / 2, 450, "РЕКОРДЫ", 0x5a5a5a, () => {
       this.unlockAudio();
       this.showRecords();
     });
@@ -77,7 +77,7 @@ export class MenuScene extends Phaser.Scene {
     g.setAlpha(0.35);
 
     for (const [key, zone] of Object.entries(ZONES)) {
-      let color = MAP_COLORS.groundLight;
+      let color: number = MAP_COLORS.groundLight;
       if (key === "tSpawn") color = MAP_COLORS.tSpawn;
       else if (key === "ctSpawn") color = MAP_COLORS.ctSpawn;
       else if (key === "siteA") color = MAP_COLORS.siteA;
@@ -144,7 +144,10 @@ export class MenuScene extends Phaser.Scene {
 
   private unlockAudio(): void {
     if (this.audioUnlocked) return;
-    if (this.sound.context.state === "suspended") {
+    if (
+      this.sound instanceof Phaser.Sound.WebAudioSoundManager &&
+      this.sound.context.state === "suspended"
+    ) {
       this.sound.context.resume().then(() => {
         console.log("[MenuScene] AudioContext unlocked.");
       });
@@ -158,24 +161,24 @@ export class MenuScene extends Phaser.Scene {
       .setInteractive();
 
     const lines = [
-      "РљРђРљ РР“Р РђРўР¬",
+      "КАК ИГРАТЬ",
       "",
-      "1. Р’С‹Р±РµСЂРё Р±Р°С€РЅСЋ РІ Buy Menu (РІРЅРёР·Сѓ СЌРєСЂР°РЅР°).",
-      "2. РљР»РёРєРЅРё РїРѕ РєР°СЂС‚Рµ, С‡С‚РѕР±С‹ РїРѕСЃС‚Р°РІРёС‚СЊ Р±Р°С€РЅСЋ.",
-      "3. Р‘Р°С€РЅРё СЃС‚СЂРµР»СЏСЋС‚ РїРѕ С‚РµСЂСЂРѕСЂРёСЃС‚Р°Рј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.",
-      "4. Р—Р° РєР°Р¶РґС‹Р№ РєРёР»Р» РїРѕР»СѓС‡Р°РµС€СЊ РґРµРЅСЊРіРё $.",
-      "5. РњРµР¶РґСѓ РІРѕР»РЅР°РјРё вЂ” СѓР»СѓС‡С€Р°Р№ Р±Р°С€РЅРё РёР»Рё СЃС‚Р°РІСЊ РЅРѕРІС‹Рµ.",
+      "1. Выбери башню в Buy Menu (внизу экрана).",
+      "2. Кликни по карте, чтобы поставить башню.",
+      "3. Башни стреляют по террористам автоматически.",
+      "4. За каждый килл получаешь деньги $.",
+      "5. Между волнами — улучшай башни или ставь новые.",
       "",
-      "Р¦РµР»СЊ: РЅРµ РґР°С‚СЊ С‚РµСЂСЂРѕСЂРёСЃС‚Р°Рј РґРѕР№С‚Рё РґРѕ CT-spawn.",
+      "Цель: не дать террористам дойти до CT-spawn.",
       "",
-      "РўРµСЂСЂРѕСЂРёСЃС‚С‹ РёРґСѓС‚ 3 РїСѓС‚СЏРјРё:",
-      "  - Long A (РѕСЂР°РЅР¶РµРІС‹Р№)",
-      "  - Tunnels -> B (РєСЂР°СЃРЅС‹Р№)",
-      "  - Mid -> Catwalk -> A (СЃРёРЅРёР№)",
+      "Террористы идут 3 путями:",
+      "  - Long A (оранжевый)",
+      "  - Tunnels -> B (красный)",
+      "  - Mid -> Catwalk -> A (синий)",
       "",
-      "РџРѕСЃР»Рµ 15 РІРѕР»РЅС‹ РЅР°С‡РёРЅР°РµС‚СЃСЏ endless-СЂРµР¶РёРј.",
+      "После 15 волны начинается endless-режим.",
       "",
-      "РљР»РёРє РІ Р»СЋР±РѕРј РјРµСЃС‚Рµ, С‡С‚РѕР±С‹ Р·Р°РєСЂС‹С‚СЊ.",
+      "Клик в любом месте, чтобы закрыть.",
     ];
 
     const txt = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, lines, {
@@ -202,15 +205,15 @@ export class MenuScene extends Phaser.Scene {
     const maxWave = Number(localStorage.getItem("cs2-td:max-wave") || "0");
 
     const lines = [
-      "Р Р•РљРћР Р”Р«",
+      "РЕКОРДЫ",
       "",
-      `Р›СѓС‡С€РёР№ СЃС‡С‘С‚:     ${highScore}`,
-      `Р’СЃРµРіРѕ РєРёР»Р»РѕРІ:    ${totalKills}`,
-      `РњР°РєСЃ. РІРѕР»РЅР°:     ${maxWave}`,
+      `Лучший счёт:     ${highScore}`,
+      `Всего киллов:    ${totalKills}`,
+      `Макс. волна:     ${maxWave}`,
       "",
-      "(РџРѕРєР° СЂРµРєРѕСЂРґРѕРІ РЅРµС‚ вЂ” СЃС‹РіСЂР°Р№ РїРµСЂРІСѓСЋ РёРіСЂСѓ!)",
+      "(Пока рекордов нет — сыграй первую игру!)",
       "",
-      "РљР»РёРє РІ Р»СЋР±РѕРј РјРµСЃС‚Рµ, С‡С‚РѕР±С‹ Р·Р°РєСЂС‹С‚СЊ.",
+      "Клик в любом месте, чтобы закрыть.",
     ];
 
     const txt = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, lines, {

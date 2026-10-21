@@ -104,9 +104,9 @@ const gameSlice = createSlice({
       state.victory = true;
     },
 
-    resetGame: () => ({
+    resetGame: (state) => ({
       ...initialState,
-      highScore: 0, // highScore сбрасывается отдельно через setHighScore
+      highScore: state.highScore, // рекорд сохраняется между играми
     }),
   },
 });

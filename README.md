@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CS2 Dust2 — Tower Defense
 
-## Getting Started
+2D tower defense in the style of CS2 on the Dust2 map. Defend CT-spawn from terrorists coming via Long A, Tunnels → B and Mid → Catwalk.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router, webpack)
+- Phaser 4 — game engine, rendered client-side only
+- Redux Toolkit — UI state mirror
+- eventemitter3 — Phaser ↔ React event bridge
+- Tailwind CSS 4, TypeScript
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+  app/                 Next.js pages and layout
+  components/game/     React wrapper for Phaser + HUD/UI
+  lib/game/
+    scenes/            Boot, Menu, Game, UI, GameOver
+    systems/           Gameplay systems (waves, towers, enemies…)
+    data/              Map, paths, sprites, sounds, configs
+    utils/             Math helpers, spatial grid
+    events.ts          Event bus between Phaser and React
+  store/               Redux store and slices
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Assets go to `public/game/sprites/` and `public/game/sounds/`. Missing files fall back to colored placeholders.

@@ -14,8 +14,8 @@ import {
 import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
 
 /**
- * Game Scene - РѕСЃРЅРѕРІРЅР°СЏ СЃС†РµРЅР° РіРµР№РјРїР»РµСЏ.
- * Р’ Р‘Р»РѕРєРµ 3: СЂРµРЅРґРµСЂ РєР°СЂС‚С‹ Dust2 (top-down).
+ * Game Scene - основная сцена геймплея.
+ * В Блоке 3: рендер карты Dust2 (top-down).
  */
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -250,7 +250,7 @@ export class GameScene extends Phaser.Scene {
     this.add.text(
       GAME_WIDTH / 2,
       GAME_HEIGHT - 20,
-      "Р‘Р»РѕРє 3: РєР°СЂС‚Р° Dust2 РіРѕС‚РѕРІР° - Р‘Р°С€РЅРё Рё РІСЂР°РіРё РїРѕСЏРІСЏС‚СЃСЏ РІ Р‘Р»РѕРєРµ 4",
+      "Блок 3: карта Dust2 готова - Башни и враги появятся в Блоке 4",
       {
         fontFamily: "monospace",
         fontSize: "11px",

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     "2D Tower Defense в стиле CS2 на карте Dust2. Защити CT-spawn от террористов!",
   keywords: ["CS2", "Dust2", "Tower Defense", "Phaser", "Next.js"],
-  authors: [{ name: "Your Name" }],
+  authors: [{ name: "Ruslan Pachkov", url: "https://github.com/pachovRuslan" }],
 };
 
 export default function RootLayout({

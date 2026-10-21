@@ -4,8 +4,8 @@ import { ALL_SOUNDS } from "../data/sounds";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 
 /**
- * Boot Scene - Р·Р°РіСЂСѓР·РєР° РІСЃРµС… Р°СЃСЃРµС‚РѕРІ.
- * Р•СЃР»Рё С„Р°Р№Р»С‹ РЅРµ РЅР°Р№РґРµРЅС‹ - РќР• РїР°РґР°РµРј, РїСЂРѕРґРѕР»Р¶Р°РµРј СЃ С†РІРµС‚РЅС‹РјРё Р·Р°РіР»СѓС€РєР°РјРё.
+ * Boot Scene - загрузка всех ассетов.
+ * Если файлы не найдены - НЕ падаем, продолжаем с цветными заглушками.
  */
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Rectangle;
