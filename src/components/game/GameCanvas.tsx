@@ -24,7 +24,7 @@ export default function GameCanvas() {
 
     console.log("[GameCanvas] Создаём Phaser.Game...");
 
-    // Phaser вставит canvas внутрь этого div
+    
     gameRef.current = new Phaser.Game({
       ...phaserConfig,
       parent: containerRef.current,
