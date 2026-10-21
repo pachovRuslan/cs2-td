@@ -1,84 +1,57 @@
-import { NO_BUILD_ZONES } from "../data/map";
-import { ALL_PATHS, PATHS } from "../data/paths";
-import { GAME_WIDTH, GAME_HEIGHT } from "../config";
-import { closestPointOnSegment, distanceSquared } from "../utils/math";
+import { TOWER_SLOTS, type Point } from "../data/map";
 import type { TowerRuntime } from "../types";
 
-export const TOWER_RADIUS = 13;
-/** Минимальная дистанция от центра башни до оси пути. */
-const PATH_CLEARANCE = 24;
-/** Минимальная дистанция между центрами башен. */
-const TOWER_SPACING = TOWER_RADIUS * 2 + 2;
-const EDGE_MARGIN = 30;
+export const TOWER_RADIUS = 16;
+/** Насколько далеко от центра слота можно кликнуть. */
+const SLOT_HIT_RADIUS = 26;
 
-export type PlacementError =
-  | "out_of_bounds"
-  | "blocked"
-  | "on_path"
-  | "occupied"
-  | "no_money";
+export type PlacementError = "no_slot" | "occupied" | "no_money";
 
 export const PLACEMENT_ERROR_TEXT: Record<PlacementError, string> = {
-  out_of_bounds: "За пределами карты",
-  blocked: "Здесь нельзя строить",
-  on_path: "Нельзя строить на пути",
-  occupied: "Слишком близко к другой башне",
+  no_slot: "Башни ставятся только в слоты",
+  occupied: "Слот занят",
   no_money: "Недостаточно денег",
 };
 
+export interface Slot extends Point {
+  index: number;
+}
+
 /**
- * Проверка, можно ли поставить башню в точку.
- * Чистая геометрия — без Phaser, легко тестировать.
+ * Постановка башен в фиксированные слоты (как в Kingdom Rush).
+ * Чистая логика — без Phaser.
  */
 export class PlacementSystem {
+  readonly slots: readonly Slot[] = TOWER_SLOTS.map((p, index) => ({ ...p, index }));
+
+  /** Ближайший слот под точкой или null. */
+  slotAt(x: number, y: number): Slot | null {
+    let best: Slot | null = null;
+    let bestSq = SLOT_HIT_RADIUS * SLOT_HIT_RADIUS;
+    for (const s of this.slots) {
+      const d = (s.x - x) ** 2 + (s.y - y) ** 2;
+      if (d <= bestSq) {
+        best = s;
+        bestSq = d;
+      }
+    }
+    return best;
+  }
+
+  isOccupied(slot: Slot, towers: readonly TowerRuntime[]): boolean {
+    return towers.some((t) => t.x === slot.x && t.y === slot.y);
+  }
+
   check(
     x: number,
     y: number,
     towers: readonly TowerRuntime[],
     canAfford: boolean
-  ): PlacementError | null {
-    if (
-      x < EDGE_MARGIN ||
-      y < EDGE_MARGIN ||
-      x > GAME_WIDTH - EDGE_MARGIN ||
-      y > GAME_HEIGHT - EDGE_MARGIN
-    ) {
-      return "out_of_bounds";
-    }
-
-    for (const z of NO_BUILD_ZONES) {
-      if (
-        x + TOWER_RADIUS > z.x &&
-        x - TOWER_RADIUS < z.x + z.w &&
-        y + TOWER_RADIUS > z.y &&
-        y - TOWER_RADIUS < z.y + z.h
-      ) {
-        return "blocked";
-      }
-    }
-
-    if (this.isNearPath(x, y)) return "on_path";
-
-    const minSq = TOWER_SPACING * TOWER_SPACING;
-    for (const t of towers) {
-      if (distanceSquared(x, y, t.x, t.y) < minSq) return "occupied";
-    }
-
-    if (!canAfford) return "no_money";
-    return null;
-  }
-
-  private isNearPath(x: number, y: number): boolean {
-    const clearSq = PATH_CLEARANCE * PATH_CLEARANCE;
-    for (const id of ALL_PATHS) {
-      const path = PATHS[id];
-      for (let i = 1; i < path.length; i++) {
-        const a = path[i - 1];
-        const b = path[i];
-        const p = closestPointOnSegment(x, y, a.x, a.y, b.x, b.y);
-        if (distanceSquared(x, y, p.x, p.y) < clearSq) return true;
-      }
-    }
-    return false;
+  ): { slot: Slot | null; error: PlacementError | null } {
+    const slot = this.slotAt(x, y);
+    if (!slot) return { slot: null, error: "no_slot" };
+    if (this.isOccupied(slot, towers)) return { slot, error: "occupied" };
+    if (!canAfford) return { slot, error: "no_money" };
+    return { slot, error: null };
   }
 }

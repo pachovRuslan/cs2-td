@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { gameEvents, GameEvents } from "../events";
-import { MAP_COLORS, ZONES } from "../data/map";
-import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
+import { MAP_IMAGE_KEY } from "../data/map";
+import { ALL_PATHS, PATHS, PATH_COLORS } from "../data/paths";
 
 /**
  * Menu Scene - главное меню.
@@ -23,47 +23,49 @@ export class MenuScene extends Phaser.Scene {
 
     this.drawMapPreview();
 
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
       .setOrigin(0);
 
-    this.add.text(GAME_WIDTH / 2, 110, "CS2 DUST2", {
+    const cy = GAME_HEIGHT / 2;
+
+    this.add.text(GAME_WIDTH / 2, cy - 230, "CS2 DUST2", {
       fontFamily: "monospace",
       fontSize: "56px",
       color: "#f5e6c8",
       fontStyle: "bold",
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 165, "TOWER DEFENSE", {
+    this.add.text(GAME_WIDTH / 2, cy - 170, "TOWER DEFENSE", {
       fontFamily: "monospace",
       fontSize: "28px",
       color: "#d4a04a",
       fontStyle: "bold",
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 200, "Защити CT-spawn от террористов", {
+    this.add.text(GAME_WIDTH / 2, cy - 130, "Защити CT-базу от террористов", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#888888",
     }).setOrigin(0.5);
 
-    this.playBtn = this.createButton(GAME_WIDTH / 2, 310, "ИГРАТЬ", 0x4a8ad4, () => {
+    this.playBtn = this.createButton(GAME_WIDTH / 2, cy - 30, "ИГРАТЬ", 0x4a8ad4, () => {
       this.unlockAudio();
       this.scene.start("GameScene");
       this.scene.launch("UIScene");
       gameEvents.emit(GameEvents.TOWER_SELECTED, { towerType: null });
     });
 
-    this.helpBtn = this.createButton(GAME_WIDTH / 2, 380, "КАК ИГРАТЬ", 0x5a5a5a, () => {
+    this.helpBtn = this.createButton(GAME_WIDTH / 2, cy + 40, "КАК ИГРАТЬ", 0x5a5a5a, () => {
       this.unlockAudio();
       this.showHelp();
     });
 
-    this.recordsBtn = this.createButton(GAME_WIDTH / 2, 450, "РЕКОРДЫ", 0x5a5a5a, () => {
+    this.recordsBtn = this.createButton(GAME_WIDTH / 2, cy + 110, "РЕКОРДЫ", 0x5a5a5a, () => {
       this.unlockAudio();
       this.showRecords();
     });
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, "Block 3 - Phaser 4 - Next.js 16", {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, "Phaser 4 · Next.js 16", {
       fontFamily: "monospace",
       fontSize: "10px",
       color: "#444444",
@@ -73,30 +75,17 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private drawMapPreview(): void {
-    const g = this.add.graphics();
-    g.setAlpha(0.35);
-
-    for (const [key, zone] of Object.entries(ZONES)) {
-      let color: number = MAP_COLORS.groundLight;
-      if (key === "tSpawn") color = MAP_COLORS.tSpawn;
-      else if (key === "ctSpawn") color = MAP_COLORS.ctSpawn;
-      else if (key === "siteA") color = MAP_COLORS.siteA;
-      else if (key === "siteB") color = MAP_COLORS.siteB;
-      else if (key === "mid" || key === "catwalk") color = MAP_COLORS.catwalk;
-      else if (key === "long" || key === "tunnels") color = MAP_COLORS.mid;
-      g.fillStyle(color, 0.6);
-      g.fillRect(zone.x, zone.y, zone.w, zone.h);
+    if (this.textures.exists(MAP_IMAGE_KEY)) {
+      this.add.image(0, 0, MAP_IMAGE_KEY).setOrigin(0);
     }
 
+    const g = this.add.graphics().setAlpha(0.6);
     for (const pathId of ALL_PATHS) {
       const path = PATHS[pathId];
-      const color = PATH_COLORS[pathId];
-      g.lineStyle(3, color, 0.7);
+      g.lineStyle(3, PATH_COLORS[pathId], 0.8);
       g.beginPath();
       g.moveTo(path[0].x, path[0].y);
-      for (let i = 1; i < path.length; i++) {
-        g.lineTo(path[i].x, path[i].y);
-      }
+      for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
       g.strokePath();
     }
   }
@@ -163,18 +152,22 @@ export class MenuScene extends Phaser.Scene {
     const lines = [
       "КАК ИГРАТЬ",
       "",
-      "1. Выбери башню в Buy Menu (внизу экрана).",
-      "2. Кликни по карте, чтобы поставить башню.",
+      "1. Выбери башню клавишами 1–8.",
+      "2. Кликни по свободному слоту на карте.",
       "3. Башни стреляют по террористам автоматически.",
       "4. За каждый килл получаешь деньги $.",
       "5. Между волнами — улучшай башни или ставь новые.",
       "",
-      "Цель: не дать террористам дойти до CT-spawn.",
+      "Цель: не дать террористам дойти до CT-базы",
+      "(вертолётная площадка).",
       "",
       "Террористы идут 3 путями:",
-      "  - Long A (оранжевый)",
-      "  - Tunnels -> B (красный)",
-      "  - Mid -> Catwalk -> A (синий)",
+      "  - Long, справа (оранжевый)",
+      "  - B, слева (красный)",
+      "  - Mid, через центр (синий)",
+      "",
+      "Клик по башне: U — апгрейд, S — продать.",
+      "P — пауза, F — скорость 2x, SPACE — волна раньше.",
       "",
       "После 15 волны начинается endless-режим.",
       "",

@@ -7,10 +7,10 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { randomRange } from "../utils/math";
 import { gameEvents, GameEvents } from "../events";
 
-const ENEMY_RADIUS = 7;
-const BOSS_RADIUS = 13;
-const HP_BAR_W = 18;
-const BOSS_HP_BAR_W = 32;
+const ENEMY_RADIUS = 9;
+const BOSS_RADIUS = 16;
+const HP_BAR_W = 22;
+const BOSS_HP_BAR_W = 38;
 
 /**
  * Враги: спавн, движение по путям, урон, замедление/оглушение, отрисовка.
@@ -67,7 +67,7 @@ export class EnemySystem {
     };
 
     this.enemies.push(enemy);
-    this.lateralOffset.set(enemy.id, cfg.isBoss ? 0 : randomRange(-6, 6));
+    this.lateralOffset.set(enemy.id, cfg.isBoss ? 0 : randomRange(-8, 8));
     return enemy;
   }
 

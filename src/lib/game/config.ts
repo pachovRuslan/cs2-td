@@ -5,8 +5,8 @@ import { GameScene } from "./scenes/GameScene";
 import { UIScene } from "./scenes/UIScene";
 import { GameOverScene } from "./scenes/GameOverScene";
 
-export const GAME_WIDTH = 1024;
-export const GAME_HEIGHT = 640;
+export const GAME_WIDTH = 1046;
+export const GAME_HEIGHT = 1008;
 
 export const phaserConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

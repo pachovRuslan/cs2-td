@@ -7,7 +7,7 @@ import type { EnemySystem } from "./EnemySystem";
 import type { ProjectileSystem } from "./ProjectileSystem";
 import type { ParticleSystem } from "./ParticleSystem";
 
-const BARREL_LEN = 16;
+const BARREL_LEN = 20;
 
 interface TowerView {
   container: Phaser.GameObjects.Container;

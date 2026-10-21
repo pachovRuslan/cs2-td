@@ -10,6 +10,7 @@
 
 export const SPRITE_KEYS = {
   // Карта (тайлы и объекты)
+  MAP_DUST2: "map_dust2",
   GROUND: "ground",
   WALL: "wall",
   CRATE: "crate",
@@ -58,6 +59,7 @@ export type SpriteKey = (typeof SPRITE_KEYS)[keyof typeof SPRITE_KEYS];
  */
 export const SPRITE_PATHS: Record<SpriteKey, string> = {
   // Карта
+  [SPRITE_KEYS.MAP_DUST2]: "/game/maps/dust2.jpg",
   [SPRITE_KEYS.GROUND]: "/game/sprites/ground.png",
   [SPRITE_KEYS.WALL]: "/game/sprites/wall.png",
   [SPRITE_KEYS.CRATE]: "/game/sprites/crate.png",

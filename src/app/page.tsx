@@ -18,24 +18,18 @@ const GameCanvas = dynamic(() => import("@/components/game/GameCanvas"), {
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-      <header className="mb-4 text-center">
-        <h1 className="text-2xl font-bold text-zinc-100">
-          CS2 Dust2 — Tower Defense
-        </h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          P — пауза · F — скорость 2x · SPACE — следующая волна раньше
-        </p>
+    <main className="h-screen bg-zinc-950 flex flex-col items-center justify-center gap-2 p-2 overflow-hidden">
+      <header className="text-center shrink-0">
+        <h1 className="text-lg font-bold text-zinc-100">CS2 Dust2 — Tower Defense</h1>
       </header>
 
-      {/* Canvas-контейнер — Phaser вставит сюда canvas */}
-      <div className="w-full max-w-[1024px] aspect-[1024/640] bg-black border-2 border-zinc-800 rounded-lg overflow-hidden">
+      {/* Canvas-контейнер — Phaser вставит сюда canvas. Ширина подгоняется под высоту экрана. */}
+      <div
+        className="aspect-[1046/1008] bg-black border border-zinc-800 rounded-lg overflow-hidden"
+        style={{ width: "min(100%, calc((100vh - 3.5rem) * 1046 / 1008))" }}
+      >
         <GameCanvas />
       </div>
-
-      <footer className="mt-4 text-xs text-zinc-600 font-mono">
-        1024×640 · Phaser 4 · Next.js 16
-      </footer>
     </main>
   );
 }

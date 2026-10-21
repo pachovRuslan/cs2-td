@@ -1,116 +1,53 @@
 /**
- * Карта Dust2 — топ-даун координаты.
- * Сетка 1024x640. Все зоны — прямоугольники {x, y, w, h}.
+ * Карта Dust2 — фоновое изображение + разметка поверх него.
+ * Координаты — в пикселях картинки public/game/maps/dust2.jpg (1046×1008),
+ * мир игры совпадает с размером картинки.
  */
 
-export interface RectZone {
+export const MAP_IMAGE_KEY = "map_dust2";
+export const MAP_IMAGE_PATH = "/game/maps/dust2.jpg";
+
+export interface Point {
   x: number;
   y: number;
-  w: number;
-  h: number;
-  label: string;
 }
 
-export interface CrateDef {
-  x: number;
-  y: number;
-  size: number;
-}
+/** Вход террористов (низ карты). */
+export const T_SPAWN: Point = { x: 555, y: 1005 };
 
-export interface WallDef {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+/** CT-база — вертолётная площадка. Сюда идут враги. */
+export const CT_BASE: Point = { x: 236, y: 142 };
 
-export const GAME_WORLD = {
-  width: 1024,
-  height: 640,
-} as const;
-
-export const MAP_COLORS = {
-  ground: 0x1a1816,
-  groundLight: 0x2a2622,
-  wall: 0x3d3a36,
-  wallTop: 0x54514a,
-  crate: 0x8b6f47,
-  crateTop: 0xa0835a,
-  car: 0x4a4a4a,
-  siteA: 0x7fa05a,
-  siteB: 0x5d7a3f,
-  tSpawn: 0xc45a3a,
-  ctSpawn: 0x3a6cc4,
-  mid: 0x4a4036,
-  catwalk: 0x5a4f3e,
-  pathLong: 0xd4a04a,
-  pathTunnels: 0xd44a4a,
-  pathMid: 0x4a8ad4,
-  text: 0xf5e6c8,
-} as const;
-
-export const ZONES: Record<string, RectZone> = {
-  tSpawn:      { x: 880, y: 540, w: 120, h: 70,  label: "T-SPAWN" },
-  ctSpawn:     { x: 60,  y: 40,  w: 130, h: 80,  label: "CT-SPAWN" },
-  siteA:       { x: 700, y: 130, w: 180, h: 130, label: "A" },
-  siteB:       { x: 200, y: 130, w: 160, h: 130, label: "B" },
-  mid:         { x: 440, y: 280, w: 120, h: 160, label: "MID" },
-  long:        { x: 820, y: 260, w: 80,  h: 280, label: "LONG A" },
-  tunnels:     { x: 280, y: 260, w: 70,  h: 280, label: "TUNNELS" },
-  catwalk:     { x: 560, y: 200, w: 140, h: 60,  label: "CATWALK" },
-  outsideLong: { x: 720, y: 460, w: 100, h: 80,  label: "OUTSIDE LONG" },
-  upperTunnels:{ x: 280, y: 260, w: 70,  h: 140, label: "UPPER TUNNELS" },
-};
-
-export const WALLS: WallDef[] = [
-  { x: 0,    y: 0,    w: 1024, h: 20 },
-  { x: 0,    y: 620, w: 1024, h: 20 },
-  { x: 0,    y: 0,    w: 20,   h: 640 },
-  { x: 1004, y: 0,    w: 20,   h: 640 },
-  { x: 820,  y: 540, w: 100, h: 20 },
-  { x: 900,  y: 260, w: 20,  h: 280 },
-  { x: 700,  y: 260, w: 120, h: 20 },
-  { x: 560,  y: 260, w: 20,  h: 60 },
-  { x: 440,  y: 260, w: 20,  h: 60 },
-  { x: 560,  y: 200, w: 140, h: 20 },
-  { x: 360,  y: 130, w: 20,  h: 130 },
-  { x: 200,  y: 260, w: 160, h: 20 },
-  { x: 350,  y: 260, w: 20,  h: 280 },
-  { x: 720,  y: 540, w: 80,  h: 60 },
-  { x: 820,  y: 540, w: 60,  h: 60 },
-  { x: 200,  y: 100, w: 100, h: 30 },
-  { x: 380,  y: 80,  w: 80,  h: 50 },
-];
-
-export const CRATES_A: CrateDef[] = [
-  { x: 745, y: 180, size: 26 },
-  { x: 775, y: 180, size: 26 },
-  { x: 760, y: 210, size: 26 },
-  { x: 800, y: 230, size: 22 },
-];
-
-export const CRATES_B: CrateDef[] = [
-  { x: 230, y: 180, size: 24 },
-  { x: 255, y: 200, size: 24 },
-  { x: 280, y: 175, size: 22 },
-];
-
-export const CAR_B = { x: 215, y: 175, w: 30, h: 50 };
-
-export const CRATES_MID: CrateDef[] = [
-  { x: 490, y: 320, size: 22 },
-  { x: 490, y: 360, size: 22 },
-];
-
-export const CRATES_LONG: CrateDef[] = [
-  { x: 860, y: 350, size: 24 },
-  { x: 860, y: 400, size: 24 },
-];
-
-export const SAND_DOTS_COUNT = 400;
-
-export const NO_BUILD_ZONES: RectZone[] = [
-  ZONES.tSpawn,
-  ZONES.ctSpawn,
-  ...WALLS.map((w) => ({ x: w.x, y: w.y, w: w.w, h: w.h, label: "wall" })),
+/**
+ * Слоты под башни. Часть стоит на «запечённых» в арт турелях и вышках,
+ * чтобы наши башни их закрывали.
+ */
+export const TOWER_SLOTS: Point[] = [
+  // вход T
+  { x: 522, y: 885 },
+  { x: 592, y: 890 },
+  { x: 518, y: 962 },
+  { x: 594, y: 962 },
+  // низ слева / B
+  { x: 96, y: 885 },
+  { x: 300, y: 880 },
+  { x: 160, y: 720 },
+  { x: 255, y: 478 },
+  { x: 100, y: 425 },
+  { x: 100, y: 470 },
+  // у CT-базы
+  { x: 130, y: 250 },
+  { x: 160, y: 180 },
+  // центр / mid
+  { x: 440, y: 655 },
+  { x: 470, y: 780 },
+  { x: 420, y: 415 },
+  // справа / long
+  { x: 660, y: 640 },
+  { x: 680, y: 762 },
+  { x: 875, y: 590 },
+  // верх справа / A
+  { x: 820, y: 170 },
+  { x: 885, y: 200 },
+  { x: 740, y: 175 },
 ];
