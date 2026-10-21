@@ -1,0 +1,402 @@
+diff --git a/src/lib/game/data/enemies.ts b/src/lib/game/data/enemies.ts
+index e69de29..92a47f2 100644
+--- a/src/lib/game/data/enemies.ts
++++ b/src/lib/game/data/enemies.ts
+@@ -0,0 +1,89 @@
++import type { EnemyConfig, EnemyKind } from "../types";
++import { SPRITE_KEYS } from "./sprites";
++
++/**
++ * Конфиги врагов (террористов).
++ * Скорость — px/сек; длина путей ~1100–1400 px.
++ */
++export const ENEMIES: Record<EnemyKind, EnemyConfig> = {
++  light: {
++    id: "light",
++    name: "Раш-T",
++    baseHp: 60,
++    baseSpeed: 95,
++    baseReward: 15,
++    baseDamage: 5,
++    sprite: SPRITE_KEYS.ENEMY_LIGHT,
++    color: 0xe0a060,
++    isBoss: false,
++  },
++  normal: {
++    id: "normal",
++    name: "Террорист",
++    baseHp: 100,
++    baseSpeed: 70,
++    baseReward: 20,
++    baseDamage: 8,
++    sprite: SPRITE_KEYS.ENEMY_NORMAL,
++    color: 0xc45a3a,
++    isBoss: false,
++  },
++  heavy: {
++    id: "heavy",
++    name: "Тяжёлый T",
++    baseHp: 260,
++    baseSpeed: 45,
++    baseReward: 40,
++    baseDamage: 15,
++    sprite: SPRITE_KEYS.ENEMY_HEAVY,
++    color: 0x8a3a2a,
++    isBoss: false,
++  },
++  elite: {
++    id: "elite",
++    name: "Элитный T",
++    baseHp: 400,
++    baseSpeed: 75,
++    baseReward: 60,
++    baseDamage: 20,
++    sprite: SPRITE_KEYS.ENEMY_ELITE,
++    color: 0xa02a5a,
++    isBoss: false,
++  },
++  boss_generic: {
++    id: "boss_generic",
++    name: "Главарь",
++    baseHp: 4000,
++    baseSpeed: 35,
++    baseReward: 400,
++    baseDamage: 40,
++    sprite: SPRITE_KEYS.ENEMY_BOSS_GENERIC,
++    color: 0x5a1a1a,
++    isBoss: true,
++  },
++  boss_kennys: {
++    id: "boss_kennys",
++    name: "kennyS",
++    baseHp: 3000,
++    baseSpeed: 40,
++    baseReward: 500,
++    baseDamage: 50,
++    sprite: SPRITE_KEYS.ENEMY_BOSS_KENNYS,
++    color: 0x2a6aa0,
++    isBoss: true,
++  },
++  boss_s1mple: {
++    id: "boss_s1mple",
++    name: "s1mple",
++    baseHp: 2500,
++    baseSpeed: 60,
++    baseReward: 500,
++    baseDamage: 50,
++    sprite: SPRITE_KEYS.ENEMY_BOSS_S1MPLE,
++    color: 0xe0c040,
++    isBoss: true,
++  },
++};
++
++/** Очки за убийство = награда × множитель. */
++export const SCORE_PER_REWARD = 10;
+diff --git a/src/lib/game/data/towers.ts b/src/lib/game/data/towers.ts
+index e69de29..623e7ae 100644
+--- a/src/lib/game/data/towers.ts
++++ b/src/lib/game/data/towers.ts
+@@ -0,0 +1,191 @@
++import type { TowerConfig, TowerKind, TowerLevelConfig } from "../types";
++import { SPRITE_KEYS } from "./sprites";
++
++/**
++ * Конфиги башен.
++ *
++ * levels[i].cost — сколько стоил переход НА этот уровень
++ * (для 1 уровня = baseCost), upgradeCost — цена следующего апгрейда.
++ */
++export const TOWERS: Record<TowerKind, TowerConfig> = {
++  ak: {
++    id: "ak",
++    name: "AK-47",
++    category: "gun",
++    description: "Универсальная винтовка. Хороший урон и скорострельность.",
++    baseCost: 300,
++    sprite: SPRITE_KEYS.TOWER_AK,
++    icon: "AK",
++    color: 0xc8a050,
++    projectileSpeed: 900,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    levels: [
++      { level: 1, damage: 18, range: 130, fireRate: 3, cost: 300, upgradeCost: 200 },
++      { level: 2, damage: 26, range: 140, fireRate: 3.5, cost: 200, upgradeCost: 350 },
++      { level: 3, damage: 36, range: 150, fireRate: 4, cost: 350, upgradeCost: 0 },
++    ],
++  },
++
++  p90: {
++    id: "p90",
++    name: "P90",
++    category: "gun",
++    description: "Высокая скорострельность, малый урон и дальность.",
++    baseCost: 250,
++    sprite: SPRITE_KEYS.TOWER_P90,
++    icon: "P90",
++    color: 0x6a8a5a,
++    projectileSpeed: 850,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    levels: [
++      { level: 1, damage: 8, range: 100, fireRate: 8, cost: 250, upgradeCost: 175 },
++      { level: 2, damage: 11, range: 105, fireRate: 9, cost: 175, upgradeCost: 300 },
++      { level: 3, damage: 15, range: 110, fireRate: 10, cost: 300, upgradeCost: 0 },
++    ],
++  },
++
++  awp: {
++    id: "awp",
++    name: "AWP",
++    category: "gun",
++    description: "Снайпер. Огромный урон и дальность, медленная стрельба.",
++    baseCost: 550,
++    sprite: SPRITE_KEYS.TOWER_AWP,
++    icon: "AWP",
++    color: 0x4a7a4a,
++    projectileSpeed: 1600,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_AWP,
++    levels: [
++      { level: 1, damage: 110, range: 260, fireRate: 0.5, cost: 550, upgradeCost: 400 },
++      { level: 2, damage: 170, range: 290, fireRate: 0.6, cost: 400, upgradeCost: 700 },
++      { level: 3, damage: 260, range: 320, fireRate: 0.7, cost: 700, upgradeCost: 0 },
++    ],
++  },
++
++  he: {
++    id: "he",
++    name: "HE-граната",
++    category: "grenade",
++    description: "Урон по площади. Эффективна против толп.",
++    baseCost: 400,
++    sprite: SPRITE_KEYS.TOWER_HE,
++    icon: "HE",
++    color: 0x8a3a2a,
++    projectileSpeed: 450,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    effect: { type: "aoe", radius: 60 },
++    levels: [
++      { level: 1, damage: 40, range: 140, fireRate: 0.6, cost: 400, upgradeCost: 300 },
++      { level: 2, damage: 60, range: 145, fireRate: 0.7, cost: 300, upgradeCost: 500 },
++      { level: 3, damage: 90, range: 150, fireRate: 0.8, cost: 500, upgradeCost: 0 },
++    ],
++  },
++
++  smoke: {
++    id: "smoke",
++    name: "Smoke",
++    category: "grenade",
++    description: "Замедляет врагов в радиусе на 50%. Урона не наносит.",
++    baseCost: 350,
++    sprite: SPRITE_KEYS.TOWER_SMOKE,
++    icon: "SM",
++    color: 0x9a9a9a,
++    projectileSpeed: 400,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    effect: { type: "slow", radius: 70, duration: 2000, factor: 0.5 },
++    levels: [
++      { level: 1, damage: 0, range: 120, fireRate: 0.5, cost: 350, upgradeCost: 250 },
++      { level: 2, damage: 0, range: 130, fireRate: 0.6, cost: 250, upgradeCost: 400 },
++      { level: 3, damage: 0, range: 140, fireRate: 0.7, cost: 400, upgradeCost: 0 },
++    ],
++  },
++
++  c4: {
++    id: "c4",
++    name: "C4",
++    category: "bomb",
++    description: "Мощный взрыв по большой площади. Очень медленная перезарядка.",
++    baseCost: 650,
++    sprite: SPRITE_KEYS.TOWER_C4,
++    icon: "C4",
++    color: 0xb04040,
++    projectileSpeed: 350,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    effect: { type: "aoe", radius: 100 },
++    levels: [
++      { level: 1, damage: 200, range: 110, fireRate: 0.2, cost: 650, upgradeCost: 500 },
++      { level: 2, damage: 320, range: 115, fireRate: 0.25, cost: 500, upgradeCost: 800 },
++      { level: 3, damage: 500, range: 120, fireRate: 0.3, cost: 800, upgradeCost: 0 },
++    ],
++  },
++
++  ct_sas: {
++    id: "ct_sas",
++    name: "CT SAS",
++    category: "agent",
++    description: "Элитный боец. Стабильный высокий DPS.",
++    baseCost: 700,
++    sprite: SPRITE_KEYS.TOWER_CT_SAS,
++    icon: "SAS",
++    color: 0x3a5aa4,
++    projectileSpeed: 1000,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    levels: [
++      { level: 1, damage: 30, range: 160, fireRate: 4, cost: 700, upgradeCost: 500 },
++      { level: 2, damage: 45, range: 170, fireRate: 4.5, cost: 500, upgradeCost: 800 },
++      { level: 3, damage: 65, range: 180, fireRate: 5, cost: 800, upgradeCost: 0 },
++    ],
++  },
++
++  ct_grom: {
++    id: "ct_grom",
++    name: "CT Гром",
++    category: "agent",
++    description: "Боец спецназа. Оглушает цель на короткое время.",
++    baseCost: 800,
++    sprite: SPRITE_KEYS.TOWER_CT_GROM,
++    icon: "GRM",
++    color: 0x2a4a7a,
++    projectileSpeed: 1000,
++    projectileSprite: SPRITE_KEYS.PROJECTILE_BULLET,
++    effect: { type: "stun", duration: 400 },
++    levels: [
++      { level: 1, damage: 50, range: 170, fireRate: 2, cost: 800, upgradeCost: 600 },
++      { level: 2, damage: 75, range: 180, fireRate: 2.5, cost: 600, upgradeCost: 900 },
++      { level: 3, damage: 110, range: 190, fireRate: 3, cost: 900, upgradeCost: 0 },
++    ],
++  },
++};
++
++/** Порядок отображения в BuyMenu. */
++export const TOWER_ORDER: TowerKind[] = [
++  "p90",
++  "ak",
++  "awp",
++  "he",
++  "smoke",
++  "c4",
++  "ct_sas",
++  "ct_grom",
++];
++
++/** Доля вложенных денег, возвращаемая при продаже. */
++export const SELL_REFUND_RATIO = 0.7;
++
++export function getTowerLevel(
++  kind: TowerKind,
++  level: 1 | 2 | 3
++): TowerLevelConfig {
++  return TOWERS[kind].levels[level - 1];
++}
++
++/** Сколько всего вложено в башню до текущего уровня включительно. */
++export function getTowerTotalCost(kind: TowerKind, level: 1 | 2 | 3): number {
++  return TOWERS[kind].levels
++    .slice(0, level)
++    .reduce((sum, l) => sum + l.cost, 0);
++}
++
++export function getTowerSellValue(kind: TowerKind, level: 1 | 2 | 3): number {
++  return Math.floor(getTowerTotalCost(kind, level) * SELL_REFUND_RATIO);
++}
+diff --git a/src/lib/game/data/waves.ts b/src/lib/game/data/waves.ts
+index e69de29..94955b8 100644
+--- a/src/lib/game/data/waves.ts
++++ b/src/lib/game/data/waves.ts
+@@ -0,0 +1,107 @@
++import type { EnemyKind, PathId, WaveConfig, WaveEnemyGroup } from "../types";
++
++/** Количество «сюжетных» волн. Дальше — endless. */
++export const TOTAL_WAVES = 15;
++
++/** Базовая награда за прохождение волны. */
++export const WAVE_REWARD_BASE = 100;
++export const WAVE_REWARD_PER_WAVE = 25;
++
++function g(
++  enemyType: EnemyKind,
++  count: number,
++  hpMul = 1,
++  speedMul = 1,
++  rewardMul = 1,
++  pathPreference?: PathId
++): WaveEnemyGroup {
++  return { enemyType, count, hpMul, speedMul, rewardMul, pathPreference };
++}
++
++function wave(
++  n: number,
++  groups: WaveEnemyGroup[],
++  spawnInterval: number,
++  isBossWave = false
++): WaveConfig {
++  return {
++    wave: n,
++    isEndless: false,
++    isBossWave,
++    groups,
++    spawnInterval,
++    startDelay: n === 1 ? 3 : 5,
++  };
++}
++
++export const WAVES: WaveConfig[] = [
++  wave(1, [g("normal", 8)], 1.4),
++  wave(2, [g("normal", 10), g("light", 4)], 1.2),
++  wave(3, [g("light", 14, 1, 1, 1, "long")], 0.8),
++  wave(4, [g("normal", 12), g("heavy", 3)], 1.1),
++  wave(5, [g("normal", 10), g("boss_generic", 1)], 1.0, true),
++
++  wave(6, [g("light", 12, 1.1), g("normal", 12, 1.1)], 0.9),
++  wave(7, [g("heavy", 8, 1.1, 1, 1, "tunnels"), g("normal", 10, 1.1)], 1.0),
++  wave(8, [g("elite", 6), g("light", 16, 1.2)], 0.8),
++  wave(9, [g("heavy", 10, 1.2), g("elite", 6, 1.1)], 0.9),
++  wave(10, [g("elite", 8, 1.2), g("boss_kennys", 1)], 0.9, true),
++
++  wave(11, [g("light", 24, 1.4, 1.1)], 0.5),
++  wave(12, [g("heavy", 14, 1.4), g("elite", 8, 1.3)], 0.8),
++  wave(13, [g("elite", 14, 1.4, 1, 1, "mid"), g("normal", 16, 1.5)], 0.7),
++  wave(14, [g("heavy", 16, 1.6), g("elite", 14, 1.5), g("light", 20, 1.6)], 0.6),
++  wave(
++    15,
++    [g("elite", 16, 1.7), g("boss_generic", 1, 1.3), g("boss_s1mple", 1)],
++    0.7,
++    true
++  ),
++];
++
++const ENDLESS_BOSSES: EnemyKind[] = ["boss_generic", "boss_kennys", "boss_s1mple"];
++
++/**
++ * Генерация endless-волн (n > TOTAL_WAVES).
++ * HP растёт экспоненциально, количество — линейно, каждая 5-я — с боссом.
++ */
++function generateEndlessWave(n: number): WaveConfig {
++  const k = n - TOTAL_WAVES;
++  const hpMul = 1.7 * Math.pow(1.15, k);
++  const speedMul = Math.min(1.5, 1 + k * 0.02);
++  const isBossWave = n % 5 === 0;
++
++  const groups: WaveEnemyGroup[] = [
++    g("light", 16 + k * 2, hpMul, speedMul),
++    g("heavy", 10 + k, hpMul, speedMul),
++    g("elite", 10 + k, hpMul, speedMul),
++  ];
++
++  if (isBossWave) {
++    const boss = ENDLESS_BOSSES[Math.floor(k / 5) % ENDLESS_BOSSES.length];
++    groups.push(g(boss, 1 + Math.floor(k / 15), hpMul));
++  }
++
++  return {
++    wave: n,
++    isEndless: true,
++    isBossWave,
++    groups,
++    spawnInterval: Math.max(0.3, 0.6 - k * 0.01),
++    startDelay: 5,
++  };
++}
++
++/** Конфиг волны по номеру (с 1). */
++export function getWaveConfig(n: number): WaveConfig {
++  if (n < 1) throw new Error(`Invalid wave number: ${n}`);
++  return n <= TOTAL_WAVES ? WAVES[n - 1] : generateEndlessWave(n);
++}
++
++export function getWaveReward(n: number): number {
++  return WAVE_REWARD_BASE + WAVE_REWARD_PER_WAVE * n;
++}
++
++export function getWaveEnemyCount(config: WaveConfig): number {
++  return config.groups.reduce((sum, grp) => sum + grp.count, 0);
++}
