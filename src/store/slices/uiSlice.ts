@@ -1,4 +1,5 @@
 import { GameSpeed, TowerKind } from "@/lib/game/types";
+import type { SceneName, TowerInfoPayload } from "@/lib/game/events";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
  
 
@@ -24,11 +25,14 @@ export interface UIState {
   /** Какую башню (runtime ID) сейчас смотрит игрок (для tooltip) */
   hoveredTowerId: string | null;
 
+  /** Выбранная построенная башня (панель апгрейда/продажи). */
+  selectedTower: TowerInfoPayload | null;
+
   /** Открыт ли экран GameOver */
   isGameOverOpen: boolean;
 
   /** Текущая сцена Phaser */
-  currentScene: "boot" | "menu" | "game" | "gameover";
+  currentScene: SceneName;
 
   /** Меню настроек открыто */
   isSettingsOpen: boolean;
@@ -47,6 +51,7 @@ const initialState: UIState = {
   isPaused: false,
   gameSpeed: 1,
   hoveredTowerId: null,
+  selectedTower: null,
   isGameOverOpen: false,
   currentScene: "boot",
   isSettingsOpen: false,
@@ -80,6 +85,10 @@ const uiSlice = createSlice({
 
     setHoveredTower: (state, action: PayloadAction<string | null>) => {
       state.hoveredTowerId = action.payload;
+    },
+
+    setSelectedTower: (state, action: PayloadAction<TowerInfoPayload | null>) => {
+      state.selectedTower = action.payload;
     },
 
     setCurrentScene: (
@@ -118,6 +127,7 @@ export const {
   setPaused,
   setGameSpeed,
   setHoveredTower,
+  setSelectedTower,
   setCurrentScene,
   openGameOver,
   closeGameOver,

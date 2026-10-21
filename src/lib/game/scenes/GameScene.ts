@@ -3,7 +3,12 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { CT_BASE, MAP_IMAGE_KEY, T_SPAWN } from "../data/map";
 import { ALL_PATHS, PATHS, PATH_COLORS } from "../data/paths";
 import { SCORE_PER_REWARD } from "../data/enemies";
-import { gameEvents, GameEvents } from "../events";
+import {
+  gameEvents,
+  GameEvents,
+  type TowerInfoPayload,
+  type WaveStatePayload,
+} from "../events";
 import type { GameSpeed, TowerKind } from "../types";
 import { TOWERS, TOWER_ORDER, getTowerLevel, getTowerSellValue } from "../data/towers";
 import { EconomySystem } from "../systems/EconomySystem";
@@ -48,7 +53,9 @@ export class GameScene extends Phaser.Scene {
   private gameTime = 0;
   private ended = false;
 
-  private debugText!: Phaser.GameObjects.Text;
+  /** Последние отправленные в React снимки — чтобы не слать одно и то же каждый кадр. */
+  private lastWaveState = "";
+  private lastTowerInfo = "";
 
   constructor() {
     super({ key: "GameScene" });
@@ -59,9 +66,9 @@ export class GameScene extends Phaser.Scene {
 
     this.drawMap();
 
+    gameEvents.emit(GameEvents.SCENE_CHANGED, { scene: "game" });
     this.initSystems();
     this.initControls();
-    this.createDebugHud();
     this.drawSlots();
 
     this.cameras.main.fadeIn(300, 0, 0, 0);
@@ -169,6 +176,8 @@ export class GameScene extends Phaser.Scene {
     this.buildType = null;
     this.selectedTowerId = null;
     this.tweens.timeScale = 1;
+    this.lastWaveState = "";
+    this.lastTowerInfo = "";
 
     this.economy = new EconomySystem();
     this.enemies = new EnemySystem(this);
@@ -188,6 +197,10 @@ export class GameScene extends Phaser.Scene {
     this.economy.onBaseDestroyed = () => this.endGame();
 
     this.economy.emitAll();
+    gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: false });
+    gameEvents.emit(GameEvents.SPEED_CHANGED, { speed: 1 });
+    gameEvents.emit(GameEvents.TOWER_SELECTED, { towerType: null });
+    this.syncUi();
   }
 
   private initControls(): void {
@@ -199,6 +212,14 @@ export class GameScene extends Phaser.Scene {
     gameEvents.on(GameEvents.PAUSE_TOGGLED, onPause);
     gameEvents.on(GameEvents.SPEED_CHANGED, onSpeed);
     gameEvents.on(GameEvents.TOWER_SELECTED, onSelect);
+    const onCallWave = () => this.waves.callEarly();
+    const onUpgrade = () => this.upgradeSelected();
+    const onSell = () => this.sellSelected();
+    const onDeselect = () => this.selectTower(null);
+    gameEvents.on(GameEvents.TOWER_DESELECTED, onDeselect);
+    gameEvents.on(GameEvents.CALL_WAVE, onCallWave);
+    gameEvents.on(GameEvents.UPGRADE_TOWER, onUpgrade);
+    gameEvents.on(GameEvents.SELL_TOWER, onSell);
 
     const kb = this.input.keyboard;
     kb?.on("keydown-P", () =>
@@ -228,6 +249,11 @@ export class GameScene extends Phaser.Scene {
       gameEvents.off(GameEvents.PAUSE_TOGGLED, onPause);
       gameEvents.off(GameEvents.SPEED_CHANGED, onSpeed);
       gameEvents.off(GameEvents.TOWER_SELECTED, onSelect);
+      gameEvents.off(GameEvents.CALL_WAVE, onCallWave);
+      gameEvents.off(GameEvents.UPGRADE_TOWER, onUpgrade);
+      gameEvents.off(GameEvents.SELL_TOWER, onSell);
+      gameEvents.off(GameEvents.TOWER_DESELECTED, onDeselect);
+      gameEvents.emit(GameEvents.TOWER_INFO, null);
       this.input.off("pointermove");
       this.input.off("pointerdown");
       this.towers.clear();
@@ -282,7 +308,7 @@ export class GameScene extends Phaser.Scene {
 
     const tower = this.towers.getAt(x, y);
     if (!tower && this.placement.slotAt(x, y)) {
-      this.particles.floatingText(x, y - 16, "Выбери башню: клавиши 1–8", "#f5e6c8");
+      this.particles.floatingText(x, y - 16, "Сначала выбери башню в Buy Menu", "#f5e6c8");
     }
     this.selectTower(tower ? tower.id : null);
   }
@@ -369,7 +395,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     if (this.ended) return;
-    this.updateDebugHud();
+    this.syncUi();
     if (this.paused) return;
     this.drawPathHints();
 
@@ -419,54 +445,42 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ==========================================================================
-  // ВРЕМЕННЫЙ HUD (до React-HUD)
+  // СИНХРОНИЗАЦИЯ С REACT-UI
   // ==========================================================================
 
-  private createDebugHud(): void {
-    this.debugText = this.add
-      .text(GAME_WIDTH - 8, 6, "", {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#f5e6c8",
-        backgroundColor: "#000000aa",
-        padding: { x: 8, y: 4 },
-      })
-      .setOrigin(1, 0)
-      .setDepth(100);
-  }
-
-  private updateDebugHud(): void {
+  /** Шлёт в React снимки волны и выбранной башни, только если они изменились. */
+  private syncUi(): void {
     const w = this.waves;
-    const waveInfo =
-      w.phase === "countdown"
-        ? `Волна ${w.nextWave} через ${Math.ceil(w.countdown)}с [SPACE — раньше]`
-        : `Волна ${w.wave}${w.isEndless ? " (endless)" : ""} · врагов: ${
-            this.enemies.aliveCount + w.remainingToSpawn
-          }`;
-    const state = this.paused ? " · ПАУЗА" : this.speed === 2 ? " · 2x" : "";
-
-    let action = TOWER_ORDER.map(
-      (k, i) => `${i + 1}:${TOWERS[k].icon}$${TOWERS[k].baseCost}`
-    ).join(" ");
-    if (this.buildType) {
-      const c = TOWERS[this.buildType];
-      action = `Ставим ${c.name} ($${c.baseCost}) — клик по слоту, ПКМ/ESC отмена`;
-    } else if (this.selectedTowerId) {
-      const t = this.towers.getById(this.selectedTowerId);
-      if (t) {
-        const up = this.towers.getUpgradeCost(t);
-        action =
-          `${TOWERS[t.type].name} lvl ${t.level} · киллы ${t.totalKills} · ` +
-          `[U] ${up === null ? "MAX" : `апгрейд $${up}`}  ` +
-          `[S] продать $${getTowerSellValue(t.type, t.level)}`;
-      }
+    const wave: WaveStatePayload = {
+      phase: w.phase,
+      wave: w.wave,
+      nextWave: w.nextWave,
+      countdown: w.phase === "countdown" ? Math.max(0, Math.ceil(w.countdown)) : 0,
+      remaining: this.enemies.aliveCount + w.remainingToSpawn,
+      isEndless: w.isEndless,
+    };
+    const waveKey = JSON.stringify(wave);
+    if (waveKey !== this.lastWaveState) {
+      this.lastWaveState = waveKey;
+      gameEvents.emit(GameEvents.WAVE_STATE, wave);
     }
 
-    this.debugText.setText(
-      `$${this.economy.money}  HP ${this.economy.baseHp}/${this.economy.baseHpMax}  ` +
-        `Счёт ${this.economy.score}  Киллы ${this.economy.kills}\n` +
-        `${waveInfo}${state}   [P] пауза  [F] скорость\n` +
-        action
-    );
+    const t = this.selectedTowerId ? this.towers.getById(this.selectedTowerId) : undefined;
+    const info: TowerInfoPayload | null = t
+      ? {
+          id: t.id,
+          type: t.type,
+          level: t.level,
+          kills: t.totalKills,
+          damageDealt: Math.round(t.totalDamage),
+          upgradeCost: this.towers.getUpgradeCost(t),
+          sellValue: getTowerSellValue(t.type, t.level),
+        }
+      : null;
+    const infoKey = JSON.stringify(info);
+    if (infoKey !== this.lastTowerInfo) {
+      this.lastTowerInfo = infoKey;
+      gameEvents.emit(GameEvents.TOWER_INFO, info);
+    }
   }
 }

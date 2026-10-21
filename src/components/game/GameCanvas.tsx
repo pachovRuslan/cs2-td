@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { phaserConfig } from "@/lib/game/config";
+import { useGameBridge } from "./useGameBridge";
 
 /**
  * React-обёртка для Phaser.
@@ -14,6 +15,8 @@ import { phaserConfig } from "@/lib/game/config";
  * Phaser не создался дважды.
  */
 export default function GameCanvas() {
+  // мост ставится раньше эффекта создания игры — первые события не теряются
+  useGameBridge();
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 

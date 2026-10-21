@@ -3,6 +3,9 @@ import type { EnemyKind, PathId, WaveConfig, WaveEnemyGroup } from "../types";
 /** Количество «сюжетных» волн. Дальше — endless. */
 export const TOTAL_WAVES = 15;
 
+/** Бонус за каждую секунду, на которую раунд вызван раньше. */
+export const EARLY_CALL_BONUS_PER_SEC = 5;
+
 /** Базовая награда за прохождение волны. */
 export const WAVE_REWARD_BASE = 100;
 export const WAVE_REWARD_PER_WAVE = 25;
@@ -30,7 +33,7 @@ function wave(
     isBossWave,
     groups,
     spawnInterval,
-    startDelay: n === 1 ? 3 : 5,
+    startDelay: n === 1 ? 15 : 8,
   };
 }
 
@@ -88,7 +91,7 @@ function generateEndlessWave(n: number): WaveConfig {
     isBossWave,
     groups,
     spawnInterval: Math.max(0.3, 0.6 - k * 0.01),
-    startDelay: 5,
+    startDelay: 8,
   };
 }
 

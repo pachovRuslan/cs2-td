@@ -1,4 +1,5 @@
 import { GameStats, TowerKind } from "@/lib/game/types";
+import type { WaveStatePayload } from "@/lib/game/events";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
  
 
@@ -19,6 +20,9 @@ export interface GameState extends GameStats {
 
   /** Топ-рекорд (из localStorage) */
   highScore: number;
+
+  /** Фаза волны, отсчёт, сколько врагов осталось. */
+  waveState: WaveStatePayload;
 }
 
 const initialState: GameState = {
@@ -34,6 +38,14 @@ const initialState: GameState = {
   towersBuilt: 0,
   towersSold: 0,
   highScore: 0,
+  waveState: {
+    phase: "countdown",
+    wave: 0,
+    nextWave: 1,
+    countdown: 0,
+    remaining: 0,
+    isEndless: false,
+  },
 };
 
 const gameSlice = createSlice({
@@ -60,6 +72,21 @@ const gameSlice = createSlice({
     damageBase: (state, action: PayloadAction<number>) => {
       state.baseHp = Math.max(0, state.baseHp - action.payload);
       if (state.baseHp <= 0) state.gameOver = true;
+    },
+
+    setScore: (state, action: PayloadAction<number>) => {
+      state.score = action.payload;
+      if (state.score > state.highScore) state.highScore = state.score;
+    },
+
+    setKills: (state, action: PayloadAction<number>) => {
+      state.kills = action.payload;
+    },
+
+    setWaveState: (state, action: PayloadAction<WaveStatePayload>) => {
+      state.waveState = action.payload;
+      state.wave = action.payload.wave;
+      state.isEndless = action.payload.isEndless;
     },
 
     setWave: (state, action: PayloadAction<number>) => {
@@ -120,6 +147,9 @@ export const {
   setWave,
   setEndless,
   addScore,
+  setScore,
+  setKills,
+  setWaveState,
   setHighScore,
   addKill,
   towerBuilt,

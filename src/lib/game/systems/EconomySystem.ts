@@ -25,6 +25,7 @@ export class EconomySystem {
       max: this.baseHpMax,
     });
     gameEvents.emit(GameEvents.SCORE_CHANGED, { score: this.score });
+    gameEvents.emit(GameEvents.KILLS_CHANGED, { kills: this.kills });
   }
 
   canAfford(cost: number): boolean {
@@ -53,6 +54,7 @@ export class EconomySystem {
 
   registerKill(reward: number, points: number): void {
     this.kills += 1;
+    gameEvents.emit(GameEvents.KILLS_CHANGED, { kills: this.kills });
     this.earn(reward);
     this.addScore(points);
   }

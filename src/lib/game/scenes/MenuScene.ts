@@ -19,6 +19,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    gameEvents.emit(GameEvents.SCENE_CHANGED, { scene: "menu" });
     this.cameras.main.setBackgroundColor("#0a0a0a");
 
     this.drawMapPreview();
@@ -152,7 +153,7 @@ export class MenuScene extends Phaser.Scene {
     const lines = [
       "КАК ИГРАТЬ",
       "",
-      "1. Выбери башню клавишами 1–8.",
+      "1. Выбери башню в Buy Menu справа (или клавиши 1–8).",
       "2. Кликни по свободному слоту на карте.",
       "3. Башни стреляют по террористам автоматически.",
       "4. За каждый килл получаешь деньги $.",

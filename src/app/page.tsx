@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import GamePanel from "@/components/game/GamePanel";
 
 /**
  * Phaser загружается ТОЛЬКО на клиенте.
@@ -18,17 +19,22 @@ const GameCanvas = dynamic(() => import("@/components/game/GameCanvas"), {
 
 export default function Home() {
   return (
-    <main className="h-screen bg-zinc-950 flex flex-col items-center justify-center gap-2 p-2 overflow-hidden">
-      <header className="text-center shrink-0">
-        <h1 className="text-lg font-bold text-zinc-100">CS2 Dust2 — Tower Defense</h1>
-      </header>
-
-      {/* Canvas-контейнер — Phaser вставит сюда canvas. Ширина подгоняется под высоту экрана. */}
+    <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-zinc-950 p-3 lg:h-screen lg:flex-row lg:items-stretch lg:overflow-hidden">
+      {/* Canvas-контейнер — Phaser вставит сюда canvas. Квадратная карта подгоняется под высоту экрана. */}
       <div
-        className="aspect-[1046/1008] bg-black border border-zinc-800 rounded-lg overflow-hidden"
-        style={{ width: "min(100%, calc((100vh - 3.5rem) * 1046 / 1008))" }}
+        className="aspect-[1046/1008] shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-black lg:self-center"
+        style={{ width: "min(100%, calc((100vh - 1.5rem) * 1046 / 1008))" }}
       >
         <GameCanvas />
+      </div>
+
+      <div className="w-full max-w-[1046px] lg:w-80 lg:max-w-none lg:shrink-0">
+        <h1 className="mb-2 text-sm font-bold uppercase tracking-widest text-zinc-500">
+          CS2 Dust2 — Tower Defense
+        </h1>
+        <div className="lg:h-[calc(100%-1.75rem)]">
+          <GamePanel />
+        </div>
       </div>
     </main>
   );

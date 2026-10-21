@@ -1,5 +1,10 @@
 import type { EnemyKind, PathId, WaveConfig, WaveEnemyGroup } from "../types";
-import { getWaveConfig, getWaveReward, TOTAL_WAVES } from "../data/waves";
+import {
+  EARLY_CALL_BONUS_PER_SEC,
+  getWaveConfig,
+  getWaveReward,
+  TOTAL_WAVES,
+} from "../data/waves";
 import { ALL_PATHS } from "../data/paths";
 import { gameEvents, GameEvents } from "../events";
 import type { EnemySystem } from "./EnemySystem";
@@ -50,7 +55,7 @@ export class WaveSystem {
   /** Начать следующую волну досрочно (только во время отсчёта). Бонус за раннний вызов. */
   callEarly(): void {
     if (this.phase !== "countdown") return;
-    const bonus = Math.floor(this.countdown * 10);
+    const bonus = Math.floor(this.countdown * EARLY_CALL_BONUS_PER_SEC);
     if (bonus > 0) this.economy.earn(bonus);
     this.countdown = 0;
   }

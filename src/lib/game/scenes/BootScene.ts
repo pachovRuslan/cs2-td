@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { gameEvents, GameEvents } from "../events";
 import { ALL_SPRITES } from "../data/sprites";
 import { ALL_SOUNDS } from "../data/sounds";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
@@ -19,6 +20,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
+    gameEvents.emit(GameEvents.SCENE_CHANGED, { scene: "boot" });
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
@@ -72,10 +74,8 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     this.loadingBar.width = 400;
-    this.loadingText.setText(
-      `Loaded ${this.loadedCount}/${this.totalCount}` +
-      (this.errorCount > 0 ? ` (errors: ${this.errorCount})` : "")
-    );
+    // недостающие ассеты — норма (рисуем заглушками), игроку их не показываем
+    this.loadingText.setText("Готово");
 
     console.log(
       `[BootScene] Loaded ${this.loadedCount}/${this.totalCount}. Errors: ${this.errorCount}.`

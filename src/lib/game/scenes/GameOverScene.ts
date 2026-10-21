@@ -21,6 +21,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(): void {
+    gameEvents.emit(GameEvents.SCENE_CHANGED, { scene: "gameover" });
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
 
