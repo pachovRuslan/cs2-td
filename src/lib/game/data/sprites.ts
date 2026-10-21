@@ -4,22 +4,14 @@
  * SPRITE_KEYS — строковые константы (ключи), по которым Phaser
  * обращается к загруженным текстурам.
  *
- * SPRITE_PATHS — пути к PNG-файлам в /public/game/sprites/.
+ * SPRITE_PATHS — пути к PNG-файлам в /public/game/sprites/
+ * (генерируются скриптом `pnpm sprites`, см. scripts/generate-sprites.mjs).
  * Next.js раздаёт /public/* как статику по корню.
  */
 
 export const SPRITE_KEYS = {
   // Карта (тайлы и объекты)
   MAP_DUST2: "map_dust2",
-  GROUND: "ground",
-  WALL: "wall",
-  CRATE: "crate",
-  CRATE_STACK: "crate_stack",
-  CAR: "car",
-  SITE_A_BG: "site_a_bg",
-  SITE_B_BG: "site_b_bg",
-  T_SPAWN_BG: "t_spawn_bg",
-  CT_SPAWN_BG: "ct_spawn_bg",
 
   // Башни
   TOWER_AWP: "tower_awp",
@@ -30,6 +22,10 @@ export const SPRITE_KEYS = {
   TOWER_C4: "tower_c4",
   TOWER_CT_SAS: "tower_ct_sas",
   TOWER_CT_GROM: "tower_ct_grom",
+  TOWER_BASE_GUN: "tower_base_gun",
+  TOWER_BASE_GRENADE: "tower_base_grenade",
+  TOWER_BASE_BOMB: "tower_base_bomb",
+  TOWER_BASE_AGENT: "tower_base_agent",
 
   // Враги
   ENEMY_LIGHT: "enemy_light",
@@ -60,15 +56,6 @@ export type SpriteKey = (typeof SPRITE_KEYS)[keyof typeof SPRITE_KEYS];
 export const SPRITE_PATHS: Record<SpriteKey, string> = {
   // Карта
   [SPRITE_KEYS.MAP_DUST2]: "/game/maps/dust2.jpg",
-  [SPRITE_KEYS.GROUND]: "/game/sprites/ground.png",
-  [SPRITE_KEYS.WALL]: "/game/sprites/wall.png",
-  [SPRITE_KEYS.CRATE]: "/game/sprites/crate.png",
-  [SPRITE_KEYS.CRATE_STACK]: "/game/sprites/crate_stack.png",
-  [SPRITE_KEYS.CAR]: "/game/sprites/car.png",
-  [SPRITE_KEYS.SITE_A_BG]: "/game/sprites/site_a_bg.png",
-  [SPRITE_KEYS.SITE_B_BG]: "/game/sprites/site_b_bg.png",
-  [SPRITE_KEYS.T_SPAWN_BG]: "/game/sprites/t_spawn_bg.png",
-  [SPRITE_KEYS.CT_SPAWN_BG]: "/game/sprites/ct_spawn_bg.png",
 
   // Башни
   [SPRITE_KEYS.TOWER_AWP]: "/game/sprites/tower_awp.png",
@@ -79,6 +66,10 @@ export const SPRITE_PATHS: Record<SpriteKey, string> = {
   [SPRITE_KEYS.TOWER_C4]: "/game/sprites/tower_c4.png",
   [SPRITE_KEYS.TOWER_CT_SAS]: "/game/sprites/tower_ct_sas.png",
   [SPRITE_KEYS.TOWER_CT_GROM]: "/game/sprites/tower_ct_grom.png",
+  [SPRITE_KEYS.TOWER_BASE_GUN]: "/game/sprites/tower_base_gun.png",
+  [SPRITE_KEYS.TOWER_BASE_GRENADE]: "/game/sprites/tower_base_grenade.png",
+  [SPRITE_KEYS.TOWER_BASE_BOMB]: "/game/sprites/tower_base_bomb.png",
+  [SPRITE_KEYS.TOWER_BASE_AGENT]: "/game/sprites/tower_base_agent.png",
 
   // Враги
   [SPRITE_KEYS.ENEMY_LIGHT]: "/game/sprites/enemy_light.png",

@@ -34,4 +34,13 @@ src/
   store/               Redux store and slices
 ```
 
-Assets go to `public/game/sprites/` and `public/game/sounds/`. Missing files fall back to colored placeholders.
+## Assets
+
+- Map background: `public/game/maps/dust2.jpg`. Enemy paths and tower slots are defined on top of it in `src/lib/game/data/paths.ts` and `src/lib/game/data/map.ts`.
+- Sprites (towers, enemies, effects) are drawn in code and rendered to PNG:
+
+  ```bash
+  pnpm sprites   # scripts/generate-sprites.mjs → public/game/sprites/*.png
+  ```
+
+- Sounds go to `public/game/sounds/`. Missing files are skipped; missing sprites fall back to colored placeholders.

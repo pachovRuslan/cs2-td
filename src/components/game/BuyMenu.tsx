@@ -5,7 +5,7 @@ import { gameEvents, GameEvents } from "@/lib/game/events";
 import { TOWERS, TOWER_ORDER } from "@/lib/game/data/towers";
 import type { TowerCategory, TowerKind } from "@/lib/game/types";
 import { useAppSelector } from "@/store/hooks";
-import { hexColor } from "@/lib/ui/format";
+import TowerIcon from "./TowerIcon";
 
 const CATEGORY_LABEL: Record<TowerCategory, string> = {
   gun: "Оружие",
@@ -61,12 +61,7 @@ export default function BuyMenu() {
                   : "border-zinc-700/80 bg-zinc-800/60 hover:border-zinc-500 hover:bg-zinc-800"
               } ${affordable ? "" : "opacity-45"}`}
             >
-              <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-black/60 font-mono text-[9px] font-bold text-white"
-                style={{ backgroundColor: hexColor(t.color) }}
-              >
-                {t.icon}
-              </span>
+              <TowerIcon id={id} size={36} />
               <span className="min-w-0">
                 <span className="block truncate text-xs font-semibold text-zinc-100">
                   {t.name}

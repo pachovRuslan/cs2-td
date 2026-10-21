@@ -366,7 +366,7 @@ export class GameScene extends Phaser.Scene {
       g.lineStyle(1.5, 0xffffff, 0.6);
       g.strokeCircle(selected.x, selected.y, range);
       g.lineStyle(2, 0xffd34a, 1);
-      g.strokeCircle(selected.x, selected.y, TOWER_RADIUS + 3);
+      g.strokeCircle(selected.x, selected.y, 28);
     }
 
     this.drawSlots();

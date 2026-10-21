@@ -4,7 +4,8 @@ import { gameEvents, GameEvents } from "@/lib/game/events";
 import { TOWERS } from "@/lib/game/data/towers";
 import type { TowerKind } from "@/lib/game/types";
 import { useAppSelector } from "@/store/hooks";
-import { formatNumber, hexColor } from "@/lib/ui/format";
+import { formatNumber } from "@/lib/ui/format";
+import TowerIcon from "./TowerIcon";
 import { Kbd } from "./Controls";
 
 /** Панель выбранной построенной башни: характеристики, апгрейд, продажа. */
@@ -22,12 +23,7 @@ export default function TowerTooltip() {
   return (
     <section className="rounded-lg border border-amber-400/40 bg-zinc-800/70 p-3">
       <div className="mb-2 flex items-center gap-2">
-        <span
-          className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black/60 font-mono text-[10px] font-bold text-white"
-          style={{ backgroundColor: hexColor(cfg.color) }}
-        >
-          {cfg.icon}
-        </span>
+        <TowerIcon id={info.type as TowerKind} size={40} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-zinc-100">{cfg.name}</div>
           <div className="flex gap-1" aria-label={`Уровень ${info.level} из 3`}>
