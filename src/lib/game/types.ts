@@ -125,7 +125,10 @@ export interface EnemyRuntime {
   speed: number;
   baseSpeed: number;
   slowUntil: number;  // ms timestamp, до какого момента замедлён
-  slowFactor: number; // 0.5 = 50% скорость
+  slowFactor: number; // 0.5 = 50% скорость, 0 = оглушён
+  reward: number;     // деньги за убийство (с учётом множителя волны)
+  damage: number;     // урон по базе
+  isBoss: boolean;
   isDead: boolean;
   reachedBase: boolean;
 }

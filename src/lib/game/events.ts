@@ -65,6 +65,10 @@ export interface GameEventPayloads {
   [GameEvents.WAVE_STARTED]: { wave: number; isEndless: boolean };
   [GameEvents.WAVE_COMPLETED]: { wave: number; reward: number };
   [GameEvents.SCORE_CHANGED]: { score: number };
+  [GameEvents.BASE_DAMAGED]: { amount: number };
+  [GameEvents.ENEMY_KILLED]: { id: string; type: string };
+  [GameEvents.ENEMY_REACHED_BASE]: { id: string };
+  [GameEvents.WAVE_ALL_DONE]: { wave: number };
   [GameEvents.GAME_OVER]: { score: number; wave: number };
   [GameEvents.GAME_VICTORY]: { score: number };
   [GameEvents.TOWER_SELECTED]: { towerType: string | null };

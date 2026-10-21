@@ -24,7 +24,7 @@ export default function Home() {
           CS2 Dust2 — Tower Defense
         </h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Блок 2 готов: Redux + Phaser config + структуры. Сцены — заглушки.
+          P — пауза · F — скорость 2x · SPACE — следующая волна раньше
         </p>
       </header>
 

@@ -12,12 +12,30 @@ import {
   SAND_DOTS_COUNT,
 } from "../data/map";
 import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
+import { SCORE_PER_REWARD } from "../data/enemies";
+import { gameEvents, GameEvents } from "../events";
+import type { GameSpeed } from "../types";
+import { EconomySystem } from "../systems/EconomySystem";
+import { EnemySystem } from "../systems/EnemySystem";
+import { WaveSystem } from "../systems/WaveSystem";
 
 /**
  * Game Scene - основная сцена геймплея.
- * В Блоке 3: рендер карты Dust2 (top-down).
+ * Рендер карты Dust2 + игровой цикл (экономика, волны, враги).
  */
 export class GameScene extends Phaser.Scene {
+  private economy!: EconomySystem;
+  private enemies!: EnemySystem;
+  private waves!: WaveSystem;
+
+  private paused = false;
+  private speed: GameSpeed = 1;
+  /** Игровое время в мс (не идёт на паузе, ускоряется на 2x). */
+  private gameTime = 0;
+  private ended = false;
+
+  private debugText!: Phaser.GameObjects.Text;
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -33,7 +51,10 @@ export class GameScene extends Phaser.Scene {
     this.drawWalls();
     this.drawCratesAndCar();
     this.drawLabels();
-    this.drawInfoPanel();
+
+    this.initSystems();
+    this.initControls();
+    this.createDebugHud();
 
     this.cameras.main.fadeIn(300, 0, 0, 0);
 
@@ -246,16 +267,109 @@ export class GameScene extends Phaser.Scene {
     ).setOrigin(0.5);
   }
 
-  private drawInfoPanel(): void {
-    this.add.text(
-      GAME_WIDTH / 2,
-      GAME_HEIGHT - 20,
-      "Блок 3: карта Dust2 готова - Башни и враги появятся в Блоке 4",
-      {
+  // ==========================================================================
+  // ИГРОВОЙ ЦИКЛ
+  // ==========================================================================
+
+  private initSystems(): void {
+    this.paused = false;
+    this.speed = 1;
+    this.gameTime = 0;
+    this.ended = false;
+
+    this.economy = new EconomySystem();
+    this.enemies = new EnemySystem(this);
+    this.waves = new WaveSystem(this.enemies, this.economy);
+
+    this.enemies.onKilled = (e) =>
+      this.economy.registerKill(e.reward, e.reward * SCORE_PER_REWARD);
+    this.enemies.onReachedBase = (e) => this.economy.damageBase(e.damage);
+    this.economy.onBaseDestroyed = () => this.endGame();
+
+    this.economy.emitAll();
+  }
+
+  private initControls(): void {
+    const onPause = ({ paused }: { paused: boolean }) => (this.paused = paused);
+    const onSpeed = ({ speed }: { speed: GameSpeed }) => (this.speed = speed);
+    gameEvents.on(GameEvents.PAUSE_TOGGLED, onPause);
+    gameEvents.on(GameEvents.SPEED_CHANGED, onSpeed);
+
+    const kb = this.input.keyboard;
+    kb?.on("keydown-P", () => {
+      this.paused = !this.paused;
+      gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: this.paused });
+    });
+    kb?.on("keydown-F", () => {
+      this.speed = this.speed === 1 ? 2 : 1;
+      gameEvents.emit(GameEvents.SPEED_CHANGED, { speed: this.speed });
+    });
+    kb?.on("keydown-SPACE", () => this.waves.callEarly());
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      gameEvents.off(GameEvents.PAUSE_TOGGLED, onPause);
+      gameEvents.off(GameEvents.SPEED_CHANGED, onSpeed);
+      this.enemies.destroy();
+    });
+  }
+
+  update(_time: number, delta: number): void {
+    if (this.ended) return;
+    this.updateDebugHud();
+    if (this.paused) return;
+
+    // ограничиваем шаг, чтобы при сворачивании вкладки враги не «телепортировались»
+    const dtMs = Math.min(delta, 50) * this.speed;
+    this.gameTime += dtMs;
+    const dt = dtMs / 1000;
+
+    this.waves.update(dt);
+    this.enemies.update(dt, this.gameTime);
+  }
+
+  private endGame(): void {
+    if (this.ended) return;
+    this.ended = true;
+    const payload = { score: this.economy.score, wave: this.waves.wave };
+    gameEvents.emit(GameEvents.GAME_OVER, payload);
+    this.cameras.main.fadeOut(600, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.stop("UIScene");
+      this.scene.start("GameOverScene", payload);
+    });
+  }
+
+  // ==========================================================================
+  // ВРЕМЕННЫЙ HUD (до React-HUD)
+  // ==========================================================================
+
+  private createDebugHud(): void {
+    this.debugText = this.add
+      .text(28, GAME_HEIGHT - 28, "", {
         fontFamily: "monospace",
-        fontSize: "11px",
-        color: "#666666",
-      }
-    ).setOrigin(0.5);
+        fontSize: "12px",
+        color: "#f5e6c8",
+        backgroundColor: "#000000aa",
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(0, 1)
+      .setDepth(100);
+  }
+
+  private updateDebugHud(): void {
+    const w = this.waves;
+    const waveInfo =
+      w.phase === "countdown"
+        ? `Волна ${w.nextWave} через ${Math.ceil(w.countdown)}с [SPACE — раньше]`
+        : `Волна ${w.wave}${w.isEndless ? " (endless)" : ""} · врагов: ${
+            this.enemies.aliveCount + w.remainingToSpawn
+          }`;
+    const state = this.paused ? " · ПАУЗА" : this.speed === 2 ? " · 2x" : "";
+
+    this.debugText.setText(
+      `$${this.economy.money}  HP ${this.economy.baseHp}/${this.economy.baseHpMax}  ` +
+        `Счёт ${this.economy.score}  Киллы ${this.economy.kills}\n` +
+        `${waveInfo}${state}   [P] пауза  [F] скорость`
+    );
   }
 }

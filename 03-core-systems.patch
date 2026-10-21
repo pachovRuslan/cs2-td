@@ -1,0 +1,754 @@
+diff --git a/src/app/globals.css b/src/app/globals.css
+index e69de29..a784e47 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -0,0 +1,6 @@
++@import "tailwindcss";
++
++html,
++body {
++  height: 100%;
++}
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 3370780..9f3eb63 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -24,7 +24,7 @@ export default function Home() {
+           CS2 Dust2 — Tower Defense
+         </h1>
+         <p className="text-sm text-zinc-500 mt-1">
+-          Блок 2 готов: Redux + Phaser config + структуры. Сцены — заглушки.
++          P — пауза · F — скорость 2x · SPACE — следующая волна раньше
+         </p>
+       </header>
+ 
+diff --git a/src/lib/game/events.ts b/src/lib/game/events.ts
+index bc0fca7..e8c7f6a 100644
+--- a/src/lib/game/events.ts
++++ b/src/lib/game/events.ts
+@@ -65,6 +65,10 @@ export interface GameEventPayloads {
+   [GameEvents.WAVE_STARTED]: { wave: number; isEndless: boolean };
+   [GameEvents.WAVE_COMPLETED]: { wave: number; reward: number };
+   [GameEvents.SCORE_CHANGED]: { score: number };
++  [GameEvents.BASE_DAMAGED]: { amount: number };
++  [GameEvents.ENEMY_KILLED]: { id: string; type: string };
++  [GameEvents.ENEMY_REACHED_BASE]: { id: string };
++  [GameEvents.WAVE_ALL_DONE]: { wave: number };
+   [GameEvents.GAME_OVER]: { score: number; wave: number };
+   [GameEvents.GAME_VICTORY]: { score: number };
+   [GameEvents.TOWER_SELECTED]: { towerType: string | null };
+diff --git a/src/lib/game/scenes/GameOverScene.ts b/src/lib/game/scenes/GameOverScene.ts
+index 2ecea7c..6070db1 100644
+--- a/src/lib/game/scenes/GameOverScene.ts
++++ b/src/lib/game/scenes/GameOverScene.ts
+@@ -1,28 +1,82 @@
+ import Phaser from "phaser";
++import { gameEvents, GameEvents } from "../events";
++
++interface GameOverData {
++  score?: number;
++  wave?: number;
++}
+ 
+ /**
+- * Game Over Scene — экран финала.
+- * Полная реализация будет позже.
++ * Game Over Scene — экран финала: счёт, волна, рестарт.
+  */
+ export class GameOverScene extends Phaser.Scene {
++  private result: Required<GameOverData> = { score: 0, wave: 0 };
++
+   constructor() {
+     super({ key: "GameOverScene" });
+   }
+ 
++  init(data: GameOverData): void {
++    this.result = { score: data.score ?? 0, wave: data.wave ?? 0 };
++  }
++
+   create(): void {
++    const cx = this.scale.width / 2;
++    const cy = this.scale.height / 2;
++
+     this.cameras.main.setBackgroundColor("#000");
+ 
+-    const text = this.add.text(
+-      this.scale.width / 2,
+-      this.scale.height / 2,
+-      "GAME OVER\n(заглушка)",
+-      {
++    this.add
++      .text(cx, cy - 90, "TERRORISTS WIN", {
+         fontFamily: "monospace",
+-        fontSize: "48px",
++        fontSize: "44px",
+         color: "#ff4444",
+-        align: "center",
+-      }
+-    );
+-    text.setOrigin(0.5);
++        fontStyle: "bold",
++      })
++      .setOrigin(0.5);
++
++    this.add
++      .text(
++        cx,
++        cy,
++        `Счёт: ${this.result.score}\nДошли до волны: ${this.result.wave}`,
++        {
++          fontFamily: "monospace",
++          fontSize: "20px",
++          color: "#f5e6c8",
++          align: "center",
++          lineSpacing: 8,
++        }
++      )
++      .setOrigin(0.5);
++
++    const hint = this.add
++      .text(cx, cy + 100, "Клик или ENTER — в меню", {
++        fontFamily: "monospace",
++        fontSize: "14px",
++        color: "#888888",
++      })
++      .setOrigin(0.5);
++
++    this.tweens.add({
++      targets: hint,
++      alpha: 0.3,
++      duration: 700,
++      yoyo: true,
++      repeat: -1,
++    });
++
++    const restart = () => {
++      gameEvents.emit(GameEvents.GAME_RESTART);
++      this.scene.start("MenuScene");
++    };
++
++    // небольшая задержка, чтобы случайный клик не пропустил экран
++    this.time.delayedCall(500, () => {
++      this.input.once("pointerdown", restart);
++      this.input.keyboard?.once("keydown-ENTER", restart);
++    });
++
++    this.cameras.main.fadeIn(400, 0, 0, 0);
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/lib/game/scenes/GameScene.ts b/src/lib/game/scenes/GameScene.ts
+index 4b0f291..c2d6831 100644
+--- a/src/lib/game/scenes/GameScene.ts
++++ b/src/lib/game/scenes/GameScene.ts
+@@ -12,12 +12,30 @@ import {
+   SAND_DOTS_COUNT,
+ } from "../data/map";
+ import { ALL_PATHS, PATHS, PATH_COLORS, PATH_NAMES } from "../data/paths";
++import { SCORE_PER_REWARD } from "../data/enemies";
++import { gameEvents, GameEvents } from "../events";
++import type { GameSpeed } from "../types";
++import { EconomySystem } from "../systems/EconomySystem";
++import { EnemySystem } from "../systems/EnemySystem";
++import { WaveSystem } from "../systems/WaveSystem";
+ 
+ /**
+  * Game Scene - основная сцена геймплея.
+- * В Блоке 3: рендер карты Dust2 (top-down).
++ * Рендер карты Dust2 + игровой цикл (экономика, волны, враги).
+  */
+ export class GameScene extends Phaser.Scene {
++  private economy!: EconomySystem;
++  private enemies!: EnemySystem;
++  private waves!: WaveSystem;
++
++  private paused = false;
++  private speed: GameSpeed = 1;
++  /** Игровое время в мс (не идёт на паузе, ускоряется на 2x). */
++  private gameTime = 0;
++  private ended = false;
++
++  private debugText!: Phaser.GameObjects.Text;
++
+   constructor() {
+     super({ key: "GameScene" });
+   }
+@@ -33,7 +51,10 @@ export class GameScene extends Phaser.Scene {
+     this.drawWalls();
+     this.drawCratesAndCar();
+     this.drawLabels();
+-    this.drawInfoPanel();
++
++    this.initSystems();
++    this.initControls();
++    this.createDebugHud();
+ 
+     this.cameras.main.fadeIn(300, 0, 0, 0);
+ 
+@@ -246,16 +267,109 @@ export class GameScene extends Phaser.Scene {
+     ).setOrigin(0.5);
+   }
+ 
+-  private drawInfoPanel(): void {
+-    this.add.text(
+-      GAME_WIDTH / 2,
+-      GAME_HEIGHT - 20,
+-      "Блок 3: карта Dust2 готова - Башни и враги появятся в Блоке 4",
+-      {
++  // ==========================================================================
++  // ИГРОВОЙ ЦИКЛ
++  // ==========================================================================
++
++  private initSystems(): void {
++    this.paused = false;
++    this.speed = 1;
++    this.gameTime = 0;
++    this.ended = false;
++
++    this.economy = new EconomySystem();
++    this.enemies = new EnemySystem(this);
++    this.waves = new WaveSystem(this.enemies, this.economy);
++
++    this.enemies.onKilled = (e) =>
++      this.economy.registerKill(e.reward, e.reward * SCORE_PER_REWARD);
++    this.enemies.onReachedBase = (e) => this.economy.damageBase(e.damage);
++    this.economy.onBaseDestroyed = () => this.endGame();
++
++    this.economy.emitAll();
++  }
++
++  private initControls(): void {
++    const onPause = ({ paused }: { paused: boolean }) => (this.paused = paused);
++    const onSpeed = ({ speed }: { speed: GameSpeed }) => (this.speed = speed);
++    gameEvents.on(GameEvents.PAUSE_TOGGLED, onPause);
++    gameEvents.on(GameEvents.SPEED_CHANGED, onSpeed);
++
++    const kb = this.input.keyboard;
++    kb?.on("keydown-P", () => {
++      this.paused = !this.paused;
++      gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: this.paused });
++    });
++    kb?.on("keydown-F", () => {
++      this.speed = this.speed === 1 ? 2 : 1;
++      gameEvents.emit(GameEvents.SPEED_CHANGED, { speed: this.speed });
++    });
++    kb?.on("keydown-SPACE", () => this.waves.callEarly());
++
++    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
++      gameEvents.off(GameEvents.PAUSE_TOGGLED, onPause);
++      gameEvents.off(GameEvents.SPEED_CHANGED, onSpeed);
++      this.enemies.destroy();
++    });
++  }
++
++  update(_time: number, delta: number): void {
++    if (this.ended) return;
++    this.updateDebugHud();
++    if (this.paused) return;
++
++    // ограничиваем шаг, чтобы при сворачивании вкладки враги не «телепортировались»
++    const dtMs = Math.min(delta, 50) * this.speed;
++    this.gameTime += dtMs;
++    const dt = dtMs / 1000;
++
++    this.waves.update(dt);
++    this.enemies.update(dt, this.gameTime);
++  }
++
++  private endGame(): void {
++    if (this.ended) return;
++    this.ended = true;
++    const payload = { score: this.economy.score, wave: this.waves.wave };
++    gameEvents.emit(GameEvents.GAME_OVER, payload);
++    this.cameras.main.fadeOut(600, 0, 0, 0);
++    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
++      this.scene.stop("UIScene");
++      this.scene.start("GameOverScene", payload);
++    });
++  }
++
++  // ==========================================================================
++  // ВРЕМЕННЫЙ HUD (до React-HUD)
++  // ==========================================================================
++
++  private createDebugHud(): void {
++    this.debugText = this.add
++      .text(28, GAME_HEIGHT - 28, "", {
+         fontFamily: "monospace",
+-        fontSize: "11px",
+-        color: "#666666",
+-      }
+-    ).setOrigin(0.5);
++        fontSize: "12px",
++        color: "#f5e6c8",
++        backgroundColor: "#000000aa",
++        padding: { x: 8, y: 4 },
++      })
++      .setOrigin(0, 1)
++      .setDepth(100);
++  }
++
++  private updateDebugHud(): void {
++    const w = this.waves;
++    const waveInfo =
++      w.phase === "countdown"
++        ? `Волна ${w.nextWave} через ${Math.ceil(w.countdown)}с [SPACE — раньше]`
++        : `Волна ${w.wave}${w.isEndless ? " (endless)" : ""} · врагов: ${
++            this.enemies.aliveCount + w.remainingToSpawn
++          }`;
++    const state = this.paused ? " · ПАУЗА" : this.speed === 2 ? " · 2x" : "";
++
++    this.debugText.setText(
++      `$${this.economy.money}  HP ${this.economy.baseHp}/${this.economy.baseHpMax}  ` +
++        `Счёт ${this.economy.score}  Киллы ${this.economy.kills}\n` +
++        `${waveInfo}${state}   [P] пауза  [F] скорость`
++    );
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/lib/game/systems/EconomySystem.ts b/src/lib/game/systems/EconomySystem.ts
+index e69de29..b44f512 100644
+--- a/src/lib/game/systems/EconomySystem.ts
++++ b/src/lib/game/systems/EconomySystem.ts
+@@ -0,0 +1,74 @@
++import { gameEvents, GameEvents } from "../events";
++
++export const START_MONEY = 800;
++export const BASE_HP_MAX = 100;
++
++/**
++ * Деньги, HP базы, счёт и киллы.
++ * Единственный источник правды для этих значений — React только слушает события.
++ */
++export class EconomySystem {
++  money = START_MONEY;
++  baseHp = BASE_HP_MAX;
++  readonly baseHpMax = BASE_HP_MAX;
++  score = 0;
++  kills = 0;
++
++  /** Вызывается один раз, когда HP базы падает до 0. */
++  onBaseDestroyed?: () => void;
++
++  /** Разослать текущее состояние (при старте сцены). */
++  emitAll(): void {
++    gameEvents.emit(GameEvents.MONEY_CHANGED, { money: this.money });
++    gameEvents.emit(GameEvents.BASE_HP_CHANGED, {
++      hp: this.baseHp,
++      max: this.baseHpMax,
++    });
++    gameEvents.emit(GameEvents.SCORE_CHANGED, { score: this.score });
++  }
++
++  canAfford(cost: number): boolean {
++    return this.money >= cost;
++  }
++
++  /** Списать деньги. Возвращает false, если не хватает. */
++  spend(cost: number): boolean {
++    if (!this.canAfford(cost)) return false;
++    this.money -= cost;
++    gameEvents.emit(GameEvents.MONEY_CHANGED, { money: this.money });
++    return true;
++  }
++
++  earn(amount: number): void {
++    if (amount <= 0) return;
++    this.money += Math.floor(amount);
++    gameEvents.emit(GameEvents.MONEY_CHANGED, { money: this.money });
++  }
++
++  addScore(points: number): void {
++    if (points <= 0) return;
++    this.score += Math.floor(points);
++    gameEvents.emit(GameEvents.SCORE_CHANGED, { score: this.score });
++  }
++
++  registerKill(reward: number, points: number): void {
++    this.kills += 1;
++    this.earn(reward);
++    this.addScore(points);
++  }
++
++  damageBase(amount: number): void {
++    if (this.baseHp <= 0) return;
++    this.baseHp = Math.max(0, this.baseHp - amount);
++    gameEvents.emit(GameEvents.BASE_DAMAGED, { amount });
++    gameEvents.emit(GameEvents.BASE_HP_CHANGED, {
++      hp: this.baseHp,
++      max: this.baseHpMax,
++    });
++    if (this.baseHp === 0) this.onBaseDestroyed?.();
++  }
++
++  get isBaseDestroyed(): boolean {
++    return this.baseHp <= 0;
++  }
++}
+diff --git a/src/lib/game/systems/EnemySystem.ts b/src/lib/game/systems/EnemySystem.ts
+index e69de29..3c6b0ae 100644
+--- a/src/lib/game/systems/EnemySystem.ts
++++ b/src/lib/game/systems/EnemySystem.ts
+@@ -0,0 +1,196 @@
++import Phaser from "phaser";
++import type { EnemyKind, EnemyRuntime, PathId, WaveEnemyGroup } from "../types";
++import { ENEMIES } from "../data/enemies";
++import { pathLength, pointAtProgress } from "../data/paths";
++import { SpatialGrid } from "../utils/spatialGrid";
++import { GAME_WIDTH, GAME_HEIGHT } from "../config";
++import { randomRange } from "../utils/math";
++import { gameEvents, GameEvents } from "../events";
++
++const ENEMY_RADIUS = 7;
++const BOSS_RADIUS = 13;
++const HP_BAR_W = 18;
++const BOSS_HP_BAR_W = 32;
++
++/**
++ * Враги: спавн, движение по путям, урон, замедление/оглушение, отрисовка.
++ *
++ * Отрисовка — один Graphics на всех (перерисовывается каждый кадр).
++ * Когда появятся спрайты, здесь можно заменить на Image-пул.
++ */
++export class EnemySystem {
++  private enemies: EnemyRuntime[] = [];
++  private lateralOffset = new Map<string, number>();
++  private pathLengths: Record<PathId, number>;
++  private graphics: Phaser.GameObjects.Graphics;
++  private nextId = 1;
++
++  /** Пространственная сетка живых врагов — для поиска целей башнями. */
++  readonly grid = new SpatialGrid<EnemyRuntime>(GAME_WIDTH, GAME_HEIGHT, 64);
++
++  onKilled?: (enemy: EnemyRuntime) => void;
++  onReachedBase?: (enemy: EnemyRuntime) => void;
++
++  constructor(scene: Phaser.Scene) {
++    this.graphics = scene.add.graphics().setDepth(10);
++    this.pathLengths = {
++      long: pathLength("long"),
++      tunnels: pathLength("tunnels"),
++      mid: pathLength("mid"),
++    };
++  }
++
++  spawn(type: EnemyKind, group: WaveEnemyGroup, pathId: PathId): EnemyRuntime {
++    const cfg = ENEMIES[type];
++    const hp = Math.round(cfg.baseHp * group.hpMul);
++    const speed = cfg.baseSpeed * group.speedMul;
++    const start = pointAtProgress(pathId, 0);
++
++    const enemy: EnemyRuntime = {
++      id: `e${this.nextId++}`,
++      type,
++      pathId,
++      pathProgress: 0,
++      x: start.x,
++      y: start.y,
++      hp,
++      maxHp: hp,
++      speed,
++      baseSpeed: speed,
++      slowUntil: 0,
++      slowFactor: 1,
++      reward: Math.round(cfg.baseReward * group.rewardMul),
++      damage: cfg.baseDamage,
++      isBoss: cfg.isBoss,
++      isDead: false,
++      reachedBase: false,
++    };
++
++    this.enemies.push(enemy);
++    this.lateralOffset.set(enemy.id, cfg.isBoss ? 0 : randomRange(-6, 6));
++    return enemy;
++  }
++
++  /** dt — секунды игрового времени, now — мс игрового времени. */
++  update(dt: number, now: number): void {
++    for (const e of this.enemies) {
++      if (e.isDead || e.reachedBase) continue;
++
++      if (now >= e.slowUntil) e.slowFactor = 1;
++      e.speed = e.baseSpeed * e.slowFactor;
++
++      e.pathProgress += (e.speed * dt) / this.pathLengths[e.pathId];
++
++      if (e.pathProgress >= 1) {
++        e.pathProgress = 1;
++        e.reachedBase = true;
++        gameEvents.emit(GameEvents.ENEMY_REACHED_BASE, { id: e.id });
++        this.onReachedBase?.(e);
++        continue;
++      }
++
++      const p = pointAtProgress(e.pathId, e.pathProgress);
++      const off = this.lateralOffset.get(e.id) ?? 0;
++      // смещение перпендикулярно направлению движения — чтобы толпа не сливалась в точку
++      e.x = p.x - Math.sin(p.angle) * off;
++      e.y = p.y + Math.cos(p.angle) * off;
++    }
++
++    this.removeFinished();
++    this.rebuildGrid();
++    this.draw();
++  }
++
++  /** Нанести урон. Возвращает true, если враг убит этим попаданием. */
++  damage(id: string, amount: number): boolean {
++    const e = this.getById(id);
++    if (!e || e.isDead || e.reachedBase || amount <= 0) return false;
++    e.hp -= amount;
++    if (e.hp <= 0) {
++      e.hp = 0;
++      e.isDead = true;
++      gameEvents.emit(GameEvents.ENEMY_KILLED, { id: e.id, type: e.type });
++      this.onKilled?.(e);
++      return true;
++    }
++    return false;
++  }
++
++  /** factor: 0.5 — замедление на 50%, 0 — оглушение. Берётся сильнейший эффект. */
++  applySlow(id: string, factor: number, until: number): void {
++    const e = this.getById(id);
++    if (!e || e.isDead) return;
++    e.slowFactor = Math.min(e.slowFactor, factor);
++    e.slowUntil = Math.max(e.slowUntil, until);
++  }
++
++  getById(id: string): EnemyRuntime | undefined {
++    return this.enemies.find((e) => e.id === id);
++  }
++
++  getAlive(): readonly EnemyRuntime[] {
++    return this.enemies;
++  }
++
++  get aliveCount(): number {
++    return this.enemies.length;
++  }
++
++  clear(): void {
++    this.enemies = [];
++    this.lateralOffset.clear();
++    this.grid.clear();
++    this.graphics.clear();
++  }
++
++  destroy(): void {
++    this.clear();
++    this.graphics.destroy();
++  }
++
++  private removeFinished(): void {
++    if (!this.enemies.some((e) => e.isDead || e.reachedBase)) return;
++    this.enemies = this.enemies.filter((e) => {
++      const done = e.isDead || e.reachedBase;
++      if (done) this.lateralOffset.delete(e.id);
++      return !done;
++    });
++  }
++
++  private rebuildGrid(): void {
++    this.grid.clear();
++    for (const e of this.enemies) this.grid.insert(e);
++  }
++
++  private draw(): void {
++    const g = this.graphics;
++    g.clear();
++
++    for (const e of this.enemies) {
++      const cfg = ENEMIES[e.type];
++      const r = e.isBoss ? BOSS_RADIUS : ENEMY_RADIUS;
++
++      // тень
++      g.fillStyle(0x000000, 0.35);
++      g.fillCircle(e.x + 2, e.y + 3, r);
++
++      // тело
++      g.fillStyle(cfg.color, 1);
++      g.fillCircle(e.x, e.y, r);
++      g.lineStyle(e.isBoss ? 2 : 1, e.slowFactor < 1 ? 0x9ad0ff : 0x1a0a0a, 1);
++      g.strokeCircle(e.x, e.y, r);
++
++      // HP-бар (только если ранен или босс)
++      if (e.hp < e.maxHp || e.isBoss) {
++        const w = e.isBoss ? BOSS_HP_BAR_W : HP_BAR_W;
++        const ratio = e.hp / e.maxHp;
++        const bx = e.x - w / 2;
++        const by = e.y - r - 6;
++        g.fillStyle(0x000000, 0.7);
++        g.fillRect(bx - 1, by - 1, w + 2, 5);
++        g.fillStyle(ratio > 0.5 ? 0x4ad45a : ratio > 0.25 ? 0xd4c44a : 0xd44a4a, 1);
++        g.fillRect(bx, by, w * ratio, 3);
++      }
++    }
++  }
++}
+diff --git a/src/lib/game/systems/WaveSystem.ts b/src/lib/game/systems/WaveSystem.ts
+index e69de29..f0a030e 100644
+--- a/src/lib/game/systems/WaveSystem.ts
++++ b/src/lib/game/systems/WaveSystem.ts
+@@ -0,0 +1,143 @@
++import type { EnemyKind, PathId, WaveConfig, WaveEnemyGroup } from "../types";
++import { getWaveConfig, getWaveReward, TOTAL_WAVES } from "../data/waves";
++import { ALL_PATHS } from "../data/paths";
++import { gameEvents, GameEvents } from "../events";
++import type { EnemySystem } from "./EnemySystem";
++import type { EconomySystem } from "./EconomySystem";
++
++export type WavePhase = "countdown" | "spawning" | "clearing";
++
++interface SpawnEntry {
++  type: EnemyKind;
++  group: WaveEnemyGroup;
++  pathId: PathId;
++}
++
++/**
++ * Управление волнами: отсчёт → спавн → ожидание зачистки → награда → следующая.
++ * Время — в секундах игрового времени (с учётом паузы и скорости).
++ */
++export class WaveSystem {
++  wave = 0;
++  phase: WavePhase = "countdown";
++  /** Секунд до начала следующей волны (в фазе countdown). */
++  countdown = 0;
++
++  private config: WaveConfig | null = null;
++  private queue: SpawnEntry[] = [];
++  private spawnTimer = 0;
++  private pathCursor = 0;
++
++  constructor(
++    private enemies: EnemySystem,
++    private economy: EconomySystem
++  ) {
++    this.prepare(1);
++  }
++
++  get isEndless(): boolean {
++    return this.wave > TOTAL_WAVES;
++  }
++
++  get nextWave(): number {
++    return this.phase === "countdown" ? this.wave + 1 : this.wave;
++  }
++
++  get remainingToSpawn(): number {
++    return this.queue.length;
++  }
++
++  /** Начать следующую волну досрочно (только во время отсчёта). Бонус за раннний вызов. */
++  callEarly(): void {
++    if (this.phase !== "countdown") return;
++    const bonus = Math.floor(this.countdown * 10);
++    if (bonus > 0) this.economy.earn(bonus);
++    this.countdown = 0;
++  }
++
++  update(dt: number): void {
++    switch (this.phase) {
++      case "countdown":
++        this.countdown -= dt;
++        if (this.countdown <= 0) this.startWave();
++        break;
++
++      case "spawning":
++        this.spawnTimer -= dt;
++        while (this.spawnTimer <= 0 && this.queue.length > 0) {
++          const entry = this.queue.shift()!;
++          this.enemies.spawn(entry.type, entry.group, entry.pathId);
++          this.spawnTimer += this.config!.spawnInterval;
++        }
++        if (this.queue.length === 0) this.phase = "clearing";
++        break;
++
++      case "clearing":
++        if (this.enemies.aliveCount === 0) this.completeWave();
++        break;
++    }
++  }
++
++  private prepare(n: number): void {
++    this.config = getWaveConfig(n);
++    this.countdown = this.config.startDelay;
++    this.phase = "countdown";
++  }
++
++  private startWave(): void {
++    const cfg = this.config!;
++    this.wave = cfg.wave;
++    this.queue = this.buildQueue(cfg);
++    this.spawnTimer = 0;
++    this.phase = "spawning";
++    gameEvents.emit(GameEvents.WAVE_STARTED, {
++      wave: this.wave,
++      isEndless: cfg.isEndless,
++    });
++  }
++
++  private completeWave(): void {
++    const reward = getWaveReward(this.wave);
++    this.economy.earn(reward);
++    this.economy.addScore(reward);
++    gameEvents.emit(GameEvents.WAVE_COMPLETED, { wave: this.wave, reward });
++    if (this.wave === TOTAL_WAVES) {
++      gameEvents.emit(GameEvents.WAVE_ALL_DONE, { wave: this.wave });
++    }
++    this.prepare(this.wave + 1);
++  }
++
++  /**
++   * Очередь спавна: группы перемешиваются по кругу (round-robin),
++   * боссы — в конце. Пути чередуются, если у группы нет pathPreference.
++   */
++  private buildQueue(cfg: WaveConfig): SpawnEntry[] {
++    const normal = cfg.groups.filter((g) => !g.enemyType.startsWith("boss"));
++    const bosses = cfg.groups.filter((g) => g.enemyType.startsWith("boss"));
++    const left = normal.map((g) => g.count);
++    const queue: SpawnEntry[] = [];
++
++    let added = true;
++    while (added) {
++      added = false;
++      normal.forEach((g, i) => {
++        if (left[i] > 0) {
++          left[i]--;
++          queue.push(this.entry(g));
++          added = true;
++        }
++      });
++    }
++
++    for (const b of bosses) {
++      for (let i = 0; i < b.count; i++) queue.push(this.entry(b));
++    }
++    return queue;
++  }
++
++  private entry(group: WaveEnemyGroup): SpawnEntry {
++    const pathId =
++      group.pathPreference ?? ALL_PATHS[this.pathCursor++ % ALL_PATHS.length];
++    return { type: group.enemyType, group, pathId };
++  }
++}
+diff --git a/src/lib/game/types.ts b/src/lib/game/types.ts
+index 79bcd9a..ec8c4fe 100644
+--- a/src/lib/game/types.ts
++++ b/src/lib/game/types.ts
+@@ -125,7 +125,10 @@ export interface EnemyRuntime {
+   speed: number;
+   baseSpeed: number;
+   slowUntil: number;  // ms timestamp, до какого момента замедлён
+-  slowFactor: number; // 0.5 = 50% скорость
++  slowFactor: number; // 0.5 = 50% скорость, 0 = оглушён
++  reward: number;     // деньги за убийство (с учётом множителя волны)
++  damage: number;     // урон по базе
++  isBoss: boolean;
+   isDead: boolean;
+   reachedBase: boolean;
+ }
