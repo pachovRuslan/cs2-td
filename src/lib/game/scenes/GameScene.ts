@@ -3,6 +3,8 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { CT_BASE, MAP_IMAGE_KEY, T_SPAWN } from "../data/map";
 import { ALL_PATHS, PATHS, PATH_COLORS } from "../data/paths";
 import { SCORE_PER_REWARD } from "../data/enemies";
+import { SOUND_KEYS } from "../data/sounds";
+import { audio } from "../audio/AudioEngine";
 import {
   gameEvents,
   GameEvents,
@@ -190,11 +192,18 @@ export class GameScene extends Phaser.Scene {
     this.projectiles.onDamageDealt = (owner, dmg, kills) =>
       this.towers.recordDamage(owner, dmg, kills);
     this.enemies.onKilled = (e) => {
+      audio.play(e.isBoss ? SOUND_KEYS.BOSS_DEATH : SOUND_KEYS.ENEMY_DEATH);
       this.economy.registerKill(e.reward, e.reward * SCORE_PER_REWARD);
       this.particles.floatingText(e.x, e.y - 10, `+$${e.reward}`);
     };
-    this.enemies.onReachedBase = (e) => this.economy.damageBase(e.damage);
+    this.enemies.onReachedBase = (e) => {
+      audio.play(SOUND_KEYS.BASE_HIT);
+      this.economy.damageBase(e.damage);
+    };
     this.economy.onBaseDestroyed = () => this.endGame();
+
+    audio.setPaused(false);
+    audio.startAmbient();
 
     this.economy.emitAll();
     gameEvents.emit(GameEvents.PAUSE_TOGGLED, { paused: false });
@@ -220,6 +229,12 @@ export class GameScene extends Phaser.Scene {
     gameEvents.on(GameEvents.CALL_WAVE, onCallWave);
     gameEvents.on(GameEvents.UPGRADE_TOWER, onUpgrade);
     gameEvents.on(GameEvents.SELL_TOWER, onSell);
+    const onWaveStart = () => audio.play(SOUND_KEYS.WAVE_START);
+    const onWaveDone = () => audio.play(SOUND_KEYS.WAVE_COMPLETE);
+    const onAllDone = () => audio.play(SOUND_KEYS.VICTORY);
+    gameEvents.on(GameEvents.WAVE_STARTED, onWaveStart);
+    gameEvents.on(GameEvents.WAVE_COMPLETED, onWaveDone);
+    gameEvents.on(GameEvents.WAVE_ALL_DONE, onAllDone);
 
     const kb = this.input.keyboard;
     kb?.on("keydown-P", () =>
@@ -232,6 +247,7 @@ export class GameScene extends Phaser.Scene {
     kb?.on("keydown-ESC", () => this.cancelAll());
     kb?.on("keydown-U", () => this.upgradeSelected());
     kb?.on("keydown-S", () => this.sellSelected());
+    kb?.on("keydown-M", () => gameEvents.emit(GameEvents.TOGGLE_MUTE));
     KEY_NAMES.forEach((key, i) =>
       kb?.on(`keydown-${key}`, () => {
         const type = TOWER_ORDER[i];
@@ -253,6 +269,10 @@ export class GameScene extends Phaser.Scene {
       gameEvents.off(GameEvents.UPGRADE_TOWER, onUpgrade);
       gameEvents.off(GameEvents.SELL_TOWER, onSell);
       gameEvents.off(GameEvents.TOWER_DESELECTED, onDeselect);
+      gameEvents.off(GameEvents.WAVE_STARTED, onWaveStart);
+      gameEvents.off(GameEvents.WAVE_COMPLETED, onWaveDone);
+      gameEvents.off(GameEvents.WAVE_ALL_DONE, onAllDone);
+      audio.stopAmbient();
       gameEvents.emit(GameEvents.TOWER_INFO, null);
       this.input.off("pointermove");
       this.input.off("pointerdown");
@@ -264,6 +284,7 @@ export class GameScene extends Phaser.Scene {
 
   private setPaused(paused: boolean): void {
     this.paused = paused;
+    audio.setPaused(paused);
     if (paused) this.tweens.pauseAll();
     else this.tweens.resumeAll();
   }
@@ -323,9 +344,11 @@ export class GameScene extends Phaser.Scene {
     );
     if (error || !slot) {
       this.particles.floatingText(x, y - 16, PLACEMENT_ERROR_TEXT[error ?? "no_slot"], "#ff6a5a");
+      audio.play(SOUND_KEYS.UI_ERROR);
       return;
     }
     this.economy.spend(cost);
+    audio.play(SOUND_KEYS.PLACE_TOWER);
     this.towers.build(type, slot.x, slot.y);
     this.drawOverlay();
   }
@@ -337,9 +360,11 @@ export class GameScene extends Phaser.Scene {
     if (cost === null) return;
     if (!this.economy.spend(cost)) {
       this.particles.floatingText(t.x, t.y - 18, "Недостаточно денег", "#ff6a5a");
+      audio.play(SOUND_KEYS.UI_ERROR);
       return;
     }
     this.towers.upgrade(t.id);
+    audio.play(SOUND_KEYS.UPGRADE_TOWER);
     this.drawOverlay();
   }
 
@@ -348,6 +373,7 @@ export class GameScene extends Phaser.Scene {
     if (!id) return;
     const t = this.towers.getById(id);
     const refund = this.towers.sell(id);
+    audio.play(SOUND_KEYS.SELL_TOWER);
     this.economy.earn(refund);
     if (t) this.particles.floatingText(t.x, t.y - 10, `+$${refund}`);
     this.selectTower(null);
@@ -416,6 +442,7 @@ export class GameScene extends Phaser.Scene {
     const payload = { score: this.economy.score, wave: this.waves.wave };
     this.saveRecords();
     gameEvents.emit(GameEvents.GAME_OVER, payload);
+    audio.play(SOUND_KEYS.GAME_OVER);
     this.cameras.main.fadeOut(600, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.scene.stop("UIScene");

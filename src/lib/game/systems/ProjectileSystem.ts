@@ -3,6 +3,8 @@ import type { ProjectileRuntime, TowerConfig } from "../types";
 import { SPRITE_KEYS } from "../data/sprites";
 import type { EnemySystem } from "./EnemySystem";
 import type { ParticleSystem } from "./ParticleSystem";
+import { audio } from "../audio/AudioEngine";
+import type { SoundKey } from "../data/sounds";
 
 const HIT_DISTANCE = 6;
 
@@ -17,6 +19,7 @@ export interface FireParams {
   sprite: string;
   ownerId: string;
   effect?: TowerConfig["effect"];
+  impactSound?: string;
 }
 
 /**
@@ -89,6 +92,7 @@ export class ProjectileSystem {
 
   private impact(p: ProjectileRuntime, hitId: string | null, now: number): void {
     const effect = p.effect;
+    if (p.impactSound) audio.play(p.impactSound as SoundKey);
 
     if (effect?.type === "aoe") {
       const radius = effect.radius ?? 50;

@@ -5,6 +5,8 @@ import { gameEvents, GameEvents } from "../events";
 import { TOWER_RADIUS } from "./PlacementSystem";
 import { depthByY, type EnemySystem } from "./EnemySystem";
 import { SPRITE_KEYS } from "../data/sprites";
+import { SOUND_KEYS, TOWER_SHOT_SOUND } from "../data/sounds";
+import { audio } from "../audio/AudioEngine";
 import type { ProjectileSystem } from "./ProjectileSystem";
 import type { ParticleSystem } from "./ParticleSystem";
 
@@ -17,6 +19,13 @@ const BASE_SPRITE: Record<TowerCategory, string> = {
   grenade: SPRITE_KEYS.TOWER_BASE_GRENADE,
   bomb: SPRITE_KEYS.TOWER_BASE_BOMB,
   agent: SPRITE_KEYS.TOWER_BASE_AGENT,
+};
+
+/** Звук при попадании снаряда (у пуль — нет). */
+const IMPACT_SOUND: Partial<Record<TowerKind, string>> = {
+  he: SOUND_KEYS.EXPLOSION_HE,
+  c4: SOUND_KEYS.EXPLOSION_C4,
+  smoke: SOUND_KEYS.SMOKE_HISS,
 };
 
 /** Расстояние от центра башни до дула (px на экране) — откуда вылетает снаряд. */
@@ -131,6 +140,7 @@ export class TowerSystem {
       const mx = t.x + Math.cos(angle) * muzzle;
       const my = t.y + Math.sin(angle) * muzzle;
       this.recoil(view, angle);
+      audio.play(TOWER_SHOT_SOUND[t.type]);
       if (cfg.category === "gun" || cfg.category === "agent") {
         this.particles.muzzle(mx, my);
       }
@@ -146,6 +156,7 @@ export class TowerSystem {
         sprite: cfg.projectileSprite,
         ownerId: t.id,
         effect: cfg.effect,
+        impactSound: IMPACT_SOUND[t.type],
       });
     }
   }

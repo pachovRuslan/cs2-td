@@ -30,6 +30,7 @@ src/
     systems/           Gameplay systems (waves, towers, enemies…)
     data/              Map, paths, sprites, sounds, configs
     utils/             Math helpers, spatial grid
+    audio/             Procedural sound engine
     events.ts          Event bus between Phaser and React
   store/               Redux store and slices
 ```
@@ -43,4 +44,5 @@ src/
   pnpm sprites   # scripts/generate-sprites.mjs → public/game/sprites/*.png
   ```
 
-- Sounds go to `public/game/sounds/`. Missing files are skipped; missing sprites fall back to colored placeholders.
+- Sound is fully procedural (Web Audio API, no audio files): every effect is a small synth recipe in `src/lib/game/audio/AudioEngine.ts`. Volume settings are saved in `localStorage`.
+- Missing sprites fall back to colored placeholders.

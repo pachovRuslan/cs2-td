@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import { gameEvents, GameEvents } from "../events";
 import { ALL_SPRITES } from "../data/sprites";
-import { ALL_SOUNDS } from "../data/sounds";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 
 /**
@@ -53,11 +52,8 @@ export class BootScene extends Phaser.Scene {
       this.load.image(key, path);
     }
 
-    for (const { key, path } of ALL_SOUNDS) {
-      this.load.audio(key, path);
-    }
 
-    this.totalCount = ALL_SPRITES.length + ALL_SOUNDS.length;
+    this.totalCount = ALL_SPRITES.length;
 
     this.load.on("loaderror", (file: Phaser.Loader.File) => {
       this.errorCount++;

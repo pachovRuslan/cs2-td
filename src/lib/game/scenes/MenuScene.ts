@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { gameEvents, GameEvents } from "../events";
+import { audio } from "../audio/AudioEngine";
+import { SOUND_KEYS } from "../data/sounds";
 import { MAP_IMAGE_KEY } from "../data/map";
 import { ALL_PATHS, PATHS, PATH_COLORS } from "../data/paths";
 
@@ -12,7 +14,6 @@ export class MenuScene extends Phaser.Scene {
   private playBtn!: Phaser.GameObjects.Container;
   private helpBtn!: Phaser.GameObjects.Container;
   private recordsBtn!: Phaser.GameObjects.Container;
-  private audioUnlocked = false;
 
   constructor() {
     super({ key: "MenuScene" });
@@ -133,16 +134,8 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private unlockAudio(): void {
-    if (this.audioUnlocked) return;
-    if (
-      this.sound instanceof Phaser.Sound.WebAudioSoundManager &&
-      this.sound.context.state === "suspended"
-    ) {
-      this.sound.context.resume().then(() => {
-        console.log("[MenuScene] AudioContext unlocked.");
-      });
-    }
-    this.audioUnlocked = true;
+    audio.unlock();
+    audio.play(SOUND_KEYS.UI_CLICK);
   }
 
   private showHelp(): void {
@@ -168,7 +161,7 @@ export class MenuScene extends Phaser.Scene {
       "  - Mid, через центр (синий)",
       "",
       "Клик по башне: U — апгрейд, S — продать.",
-      "P — пауза, F — скорость 2x, SPACE — волна раньше.",
+      "P — пауза, F — скорость 2x, SPACE — волна раньше, M — звук.",
       "",
       "После 15 волны начинается endless-режим.",
       "",

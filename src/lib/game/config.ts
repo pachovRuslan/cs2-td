@@ -30,9 +30,9 @@ export const phaserConfig: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
+  // звук — свой процедурный AudioEngine, встроенный звук Phaser не нужен
   audio: {
-    disableWebAudio: false,
-    noAudio: false,
+    noAudio: true,
   },
   input: {
     activePointers: 3,

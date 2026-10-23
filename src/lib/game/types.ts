@@ -145,6 +145,7 @@ export interface ProjectileRuntime {
   sprite: string;
   ownerId: string;      // ID башни
   effect?: TowerConfig["effect"];
+  impactSound?: string; // звук при попадании (взрыв, смок)
 }
 
 // ============================================================================

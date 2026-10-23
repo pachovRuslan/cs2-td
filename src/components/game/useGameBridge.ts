@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   gameEvents,
   GameEvents,
@@ -9,7 +9,8 @@ import {
   type WaveStatePayload,
 } from "@/lib/game/events";
 import type { GameSpeed, TowerKind } from "@/lib/game/types";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { audio } from "@/lib/game/audio/AudioEngine";
 import {
   setBaseHp,
   setKills,
@@ -23,6 +24,9 @@ import {
   setGameSpeed,
   setPaused,
   setSelectedTower,
+  setMuted,
+  setVolume,
+  toggleMute,
 } from "@/store/slices/uiSlice";
 
 /**
@@ -33,6 +37,28 @@ import {
  */
 export function useGameBridge(): void {
   const dispatch = useAppDispatch();
+  const volume = useAppSelector((s) => s.ui.volume);
+  const muted = useAppSelector((s) => s.ui.muted);
+  /** Первый прогон эффекта синхронизации — ещё с дефолтами стора, его пропускаем. */
+  const skipFirstSync = useRef(true);
+
+  // звук: настройки из localStorage → Redux, разблокировка по первому жесту
+  useEffect(() => {
+    audio.init();
+    const { muted: savedMuted, ...savedVolume } = audio.getSettings();
+    dispatch(setVolume(savedVolume));
+    dispatch(setMuted(savedMuted));
+  }, [dispatch]);
+
+  // Redux → AudioEngine (он же сохраняет в localStorage)
+  // (первый прогон — с дефолтами стора; пропускаем, чтобы не затереть сохранённые настройки)
+  useEffect(() => {
+    if (skipFirstSync.current) {
+      skipFirstSync.current = false;
+      return;
+    }
+    audio.setSettings({ ...volume, muted });
+  }, [volume, muted]);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,6 +77,7 @@ export function useGameBridge(): void {
           dispatch(selectTower(towerType as TowerKind | null)),
       ],
       [GameEvents.TOWER_INFO, (info: TowerInfoPayload | null) => dispatch(setSelectedTower(info))],
+      [GameEvents.TOGGLE_MUTE, () => dispatch(toggleMute())],
     ];
 
     for (const [event, fn] of handlers) gameEvents.on(event, fn);

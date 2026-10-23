@@ -58,6 +58,7 @@ export const GameEvents = {
   CALL_WAVE: "cmd:call_wave",
   UPGRADE_TOWER: "cmd:upgrade_tower",
   SELL_TOWER: "cmd:sell_tower",
+  TOGGLE_MUTE: "cmd:toggle_mute",
 
   // Audio (опционально, обычно Phaser сам играет звуки)
   PLAY_SOUND: "audio:play",

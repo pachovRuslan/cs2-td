@@ -1,5 +1,6 @@
 import { GameSpeed, TowerKind } from "@/lib/game/types";
 import type { SceneName, TowerInfoPayload } from "@/lib/game/events";
+import { DEFAULT_VOLUME } from "@/lib/game/data/sounds";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
  
 
@@ -37,6 +38,9 @@ export interface UIState {
   /** Меню настроек открыто */
   isSettingsOpen: boolean;
 
+  /** Звук выключен целиком. */
+  muted: boolean;
+
   /** Громкость */
   volume: {
     master: number;
@@ -55,12 +59,8 @@ const initialState: UIState = {
   isGameOverOpen: false,
   currentScene: "boot",
   isSettingsOpen: false,
-  volume: {
-    master: 0.7,
-    sfx: 0.8,
-    ambient: 0.3,
-    ui: 0.5,
-  },
+  muted: false,
+  volume: { ...DEFAULT_VOLUME },
 };
 
 const uiSlice = createSlice({
@@ -117,7 +117,16 @@ const uiSlice = createSlice({
       state.volume = { ...state.volume, ...action.payload };
     },
 
-    resetUI: () => initialState,
+    setMuted: (state, action: PayloadAction<boolean>) => {
+      state.muted = action.payload;
+    },
+
+    toggleMute: (state) => {
+      state.muted = !state.muted;
+    },
+
+    // звук — пользовательская настройка, при рестарте игры не сбрасывается
+    resetUI: (state) => ({ ...initialState, muted: state.muted, volume: state.volume }),
   },
 });
 
@@ -133,6 +142,8 @@ export const {
   closeGameOver,
   toggleSettings,
   setVolume,
+  setMuted,
+  toggleMute,
   resetUI,
 } = uiSlice.actions;
 
